@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1f6f54">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="치유센터 에어컨">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <title>산림치유센터 에어컨</title>
 <style>
 :root{
@@ -65,6 +71,8 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .pl.room.cool{fill:color-mix(in srgb,var(--cool) 24%,var(--p-room))}
 .pl.room.heat{fill:color-mix(in srgb,var(--heat) 26%,var(--p-room))}
 .pl.room.err{stroke:var(--bad);stroke-dasharray:10 8}
+.pl.room.na{fill:var(--p-neutral)}
+.pd.na{fill:none;stroke:var(--off);stroke-width:3}
 .pl.room.live{stroke:var(--ok);stroke-width:9}
 .pl.room.sel{stroke:var(--brand);stroke-width:9}
 .pl.void{opacity:.55}
@@ -96,6 +104,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .pill i{width:7px;height:7px;border-radius:50%;background:var(--off);display:inline-block}
 .pill.cool i{background:var(--cool)} .pill.heat i{background:var(--heat)} .pill.on i{background:var(--ok)}
 .pill.err{color:var(--bad)}
+.pill.na{color:var(--mute);border:1px dashed var(--line);background:transparent}
 .autoLine{margin-top:9px;font-size:12.5px;color:var(--mute)}
 .autoLine b{color:var(--ink);font-weight:600}
 .act{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
@@ -103,7 +112,19 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .act .cool{color:var(--cool)} .act .heat{color:var(--heat)}
 .act button:active{background:var(--chip)}
 .act button:disabled{opacity:.4}
-.noac{margin-top:10px;font-size:13px;color:var(--mute)}
+.noac{margin-top:10px;font-size:13px;color:var(--mute);line-height:1.5}
+.room.na{border-style:dashed}
+
+/* 컴퓨터(넓은 화면): 왼쪽 평면도, 오른쪽 방 카드 */
+@media (min-width:980px){
+  body{max-width:1240px;padding-left:28px;padding-right:28px}
+  header{position:static}
+  #app{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(380px,1fr);column-gap:26px;align-items:start}
+  #app>header,#err,#floorBar,#others{grid-column:1/-1}
+  #plan{grid-column:1;grid-row:4;position:sticky;top:16px;padding:14px}
+  #rooms{grid-column:2;grid-row:4}
+  .tabs{max-width:520px}
+}
 
 .others{margin-top:6px;font-size:13px;color:var(--mute);line-height:1.5}
 .err{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:12px;padding:12px;font-size:13.5px;margin:12px 0}
@@ -229,7 +250,7 @@ const PLAN = {
   '1F': [[.19,.766,.42,.57,'corr',''],[0,.073,0,.42,'stairs',''],[.075,.271,0,.42,'core',''],
     [.274,.763,0,.42,'room','hp2'],[0,.19,.42,1,'room','lobby1'],[.192,.763,.57,1,'room','hp1'],[.766,1,0,1,'room','haearim']],
   'B1': [[.247,.986,.43,.57,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],
-    [.358,.51,0,.43,'other',''],[.512,.694,0,.43,'other',''],[.695,1,0,.43,'room','media'],
+    [.358,.469,0,.43,'room','dressF'],[.471,.582,0,.43,'room','dressM'],[.584,.694,0,.43,'room','supply'],[.695,1,0,.43,'room','media'],
     [0,.247,.43,1,'room','b1lobby'],[.249,.391,.57,1,'room','b101'],[.393,.774,.57,1,'room','b102'],[.776,1,.57,1,'room','media']],
 };
 const NOTE = { core: '엘리베이터·화장실', corr: '복도', void: '해아림홀 상부(오픈)', stairs: '' };
@@ -253,7 +274,7 @@ function planHtml(F) {
     const avg = temps.length ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10 : null;
     let cls = 'pl room';
     if (ons.some((d) => d.mode === 'COOL')) cls += ' cool'; else if (ons.some((d) => d.mode === 'HEAT')) cls += ' heat';
-    if (devs.length && devs.every((d) => !d.ok)) cls += ' err';
+    if (r.noapi) cls += ' na'; else if (devs.length && devs.every((d) => !d.ok)) cls += ' err';
     if (r.schedule.current.length) cls += ' live';
     const cx = x + w / 2, cy = y + h / 2;
     g += `<g data-room="${key}"><rect class="${cls}" ${rx}/>`;
@@ -262,9 +283,10 @@ function planHtml(F) {
     if (devs.length) {
       const n = devs.length, gap = 30, x0 = cx - (n - 1) * gap / 2;
       devs.forEach((d, i) => {
-        const c = !d.ok ? 'err' : d.power !== 'ON' ? '' : d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
+        const c = d.unsupported ? 'na' : !d.ok ? 'err' : d.power !== 'ON' ? '' : d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
         g += `<circle class="pd ${c}" cx="${(x0 + i * gap).toFixed(1)}" cy="${(cy + 58).toFixed(1)}" r="9"/>`;
       });
+      if (r.noapi) g += `<text class="t3" x="${cx.toFixed(1)}" y="${(cy + 92).toFixed(1)}">앱에서만 조작</text>`;
     } else g += `<text class="t3" x="${cx.toFixed(1)}" y="${(cy + 60).toFixed(1)}">에어컨 없음</text>`;
     g += '</g>';
   }
@@ -286,6 +308,7 @@ function focusRoom(key) {
 /* ── 그리기 ── */
 function devPill(d) {
   const name = esc(shortAlias(d.alias));
+  if (d.unsupported) return `<span class="pill na"><i></i>${name} · 제어 불가</span>`;
   if (!d.ok) return `<span class="pill err" title="${esc(d.error || '')}"><i></i>${name} · 읽기 실패</span>`;
   if (d.power === 'ON') {
     const m = MODE[d.mode] || d.mode || '';
@@ -322,8 +345,8 @@ function render() {
   document.querySelectorAll('.tab').forEach((t) => t.onclick = () => { floor = t.dataset.f; render(); window.scrollTo({ top: 0 }); });
 
   const F = d.floors.find((f) => f.floor === floor) || d.floors[0];
-  const ids = F.rooms.flatMap((r) => r.devices.map((x) => x.id));
-  const onIds = F.rooms.flatMap((r) => r.devices.filter((x) => x.power === 'ON').map((x) => x.id));
+  const ids = F.rooms.flatMap((r) => r.devices.filter((x) => !x.unsupported).map((x) => x.id));
+  const onIds = F.rooms.flatMap((r) => r.devices.filter((x) => !x.unsupported && x.power === 'ON').map((x) => x.id));
   $('floorBar').innerHTML = `<span>에어컨 ${ids.length}대 · 켜짐 ${onIds.length}대</span><button id="floorOff" ${onIds.length ? '' : 'disabled'}>${F.floor} 전체 끄기</button>`;
   $('floorOff').onclick = () => confirmAct(`${F.floor} 전체 끄기`, `켜져 있는 에어컨 ${onIds.length}대를 끕니다.`, onIds, 'off');
 
@@ -334,13 +357,15 @@ function render() {
     const st = STATE_TXT[r.auto.state];
     const autoLine = r.scheduled
       ? `<div class="autoLine">자동 판단${st ? ' (' + st + ')' : ''}: <b>${esc(r.auto.reason)}</b>${r.auto.actions.length ? ' → ' + esc(r.auto.actions.join(', ')) : ''}</div>` : '';
-    const body = r.devices.length
+    const body = r.noapi
+      ? `<div class="devs">${r.devices.map(devPill).join('')}</div><div class="noac">이 에어컨은 LG 서버가 상태 확인·제어를 지원하지 않아, 이 화면에서는 조작할 수 없습니다. ThinQ 앱이나 리모컨으로 조작해 주세요. (일정은 그대로 표시됩니다)</div>`
+      : r.devices.length
       ? `<div class="devs">${r.devices.map(devPill).join('')}</div>${autoLine}
          <div class="act" data-room="${r.key}">
            <button class="cool" data-a="cool">냉방</button><button class="heat" data-a="heat">난방</button>
            <button data-a="off">끄기</button><button data-a="temp">온도</button></div>`
       : '<div class="noac">등록된 에어컨이 없습니다</div>';
-    return `<article class="room" id="room-${r.key}"><div class="rHead"><div class="rName">${esc(r.name)}</div>
+    return `<article class="room ${r.noapi ? 'na' : ''}" id="room-${r.key}"><div class="rHead"><div class="rName">${esc(r.name)}</div>
       <div class="rTemp">${avg == null ? '–' : (Math.round(avg * 10) / 10) + '°'}<small>방 온도</small></div></div>
       ${progHtml(r.schedule, r.scheduled)}${body}</article>`;
   }).join('');
@@ -410,6 +435,11 @@ async function togglePause(p) {
   if (!store.get()) return showLogin();
   try { await load(true); } catch (e) { showLogin(e.auth ? e.message : e.message); }
 })();
+
+/* 앱처럼 설치(홈 화면 추가 / 크롬 '앱으로 설치')를 위한 최소 서비스워커. 화면 껍데기만 보관하고 /api 응답은 절대 저장하지 않는다. */
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 </script>
 </body>
 </html>

@@ -1,0 +1,16 @@
+{
+  "name": "산림치유센터 에어컨",
+  "short_name": "치유센터 에어컨",
+  "description": "산림치유센터 에어컨 현황·제어와 프로그램 일정 연동 자동 제어",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f2ec",
+  "theme_color": "#1f6f54",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

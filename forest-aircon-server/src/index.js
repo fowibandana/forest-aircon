@@ -38,7 +38,7 @@ export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, know
     .filter((d) => d.room !== 'later');   // 후순위 구역(사무실·업무지원센터 등)은 읽지도 제어하지도 않는다
   const states = await mapLimit(acs, 5, async (d) => {
     // 상태 읽기는 호출 수를 아끼려고 «알려진 방 + 필요한 방»만 한다(Workers 무료 플랜은 요청당 50회 제한)
-    if (!d.room || !PLACES[d.room] || !wantRoom(d.room)) return { ...d, skipped: true };
+    if (!d.room || !PLACES[d.room] || PLACES[d.room].noapi || !wantRoom(d.room)) return { ...d, skipped: true };
     try { return { ...d, ...(await thinq.getState(d.id)), ok: true }; }
     catch (e) { return { ...d, ok: false, error: e.message }; }
   });
@@ -55,7 +55,7 @@ function evaluate(sched, devices, cfg = CONFIG) {
   return { by, decisions: out };
 }
 
-const pub = (d) => ({ id: d.id, alias: d.alias, ok: !!d.ok, error: d.error || null, power: d.power || null, mode: d.mode || null, cur: d.cur ?? null, target: d.target ?? null });
+const pub = (d) => ({ id: d.id, alias: d.alias, unsupported: !!(d.room && PLACES[d.room] && PLACES[d.room].noapi), ok: !!d.ok, error: d.error || null, power: d.power || null, mode: d.mode || null, cur: d.cur ?? null, target: d.target ?? null });
 
 async function isPaused(env) {
   if (!env.STATE) return false;
@@ -68,7 +68,7 @@ async function statusResponse(env) {
   const floors = FLOOR_ORDER.map((f) => ({
     floor: f,
     rooms: Object.entries(PLACES).filter(([, r]) => r.floor === f).map(([key, r]) => ({
-      key, name: r.name, short: r.short, scheduled: r.sched,
+      key, name: r.name, short: r.short, scheduled: r.sched, noapi: !!r.noapi,
       schedule: summarizeRoom(by[key] || [], snap.sched.items, snap.sched.nowMin),
       devices: snap.devices.filter((d) => d.room === key).map(pub),
       temp: decisions[key].temp,
@@ -97,10 +97,11 @@ async function controlResponse(env, body) {
     if (!(value >= 16 && value <= 30)) return json({ ok: false, error: '온도는 16~30°C 사이로 입력하세요' }, 400);
   }
   const thinq = new Thinq(env.THINQ_PAT);
-  const known = new Set((await thinq.listDevices()).filter((d) => /AIR_CONDITIONER/i.test(d.type)).map((d) => d.id));
+  const acs = (await thinq.listDevices()).filter((d) => /AIR_CONDITIONER/i.test(d.type));
+  const known = new Set(acs.filter((d) => { const k = deviceRoom(d); return k && PLACES[k] && !PLACES[k].noapi; }).map((d) => d.id));
   const results = [];
   for (const id of ids) {
-    if (!known.has(id)) { results.push({ id, ok: false, error: '등록된 에어컨이 아닙니다' }); continue; }
+    if (!known.has(id)) { results.push({ id, ok: false, error: '제어할 수 없는 에어컨입니다(미등록·후순위·API 미지원)' }); continue; }
     try {
       await applyOne(thinq, id, action === 'cool' ? { power: 'ON', mode: 'COOL', temp: body.value ? Number(body.value) : undefined }
         : action === 'heat' ? { power: 'ON', mode: 'HEAT', temp: body.value ? Number(body.value) : undefined }

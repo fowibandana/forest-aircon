@@ -13,7 +13,7 @@ const ALIASES = {
   '203호 스크린측': 'r203', '203호 입구측': 'r203', '204호 스크린측': 'r204', '204호 입구측': 'r204',
   '좌식다도실 탕비실측': 'r205', '좌식다도실 강사측': 'r205',
   // 1F / B1
-  '건강증진실2 1': 'hp2', '건강증진실2 2': 'hp2', '건강증진실2 3': 'hp2', '건강증진실2 4': 'hp2', '해아림홀 뒤': 'haearim',
+  '치유장비실 1': 'hp1', '치유장비실 2': 'hp1', '치유장비실 3': 'hp1', '치유장비실 4': 'hp1', '산림치유센터 탈의실 여': 'dressF', '산림치유센터 탈의실 남': 'dressM', '산림치유센터 비품실': 'supply', '건강증진실2 1': 'hp2', '건강증진실2 2': 'hp2', '건강증진실2 3': 'hp2', '건강증진실2 4': 'hp2', '해아림홀 뒤': 'haearim',
   'B101호': 'b101', '건강측정실 입구측': 'b102', '실감실': 'media',
   // 후순위
   '데탁': 'later', '엘베쪽': 'later',
@@ -178,16 +178,29 @@ await t('수동 제어: 등록 안 된 기기·범위 밖 온도 거절', async 
   });
   assert.equal(w.calls.filter((c) => c.method === 'POST' && /control$/.test(c.url)).length, 3);
 });
-await t('상태 읽기 실패(해아림홀 400 2201)여도 나머지는 정상', async () => {
-  const w = makeWorld({ items: [] });
-  const orig = w.fetchFn; const hid = w.devices.find((d) => d.alias.includes('해아림홀')).deviceId;
-  const f2 = async (u, o) => (u.endsWith(`/devices/${hid}/state`) ? new Response('{"error":{"message":"Not provided feature","code":"2201"}}', { status: 400 }) : orig(u, o));
-  globalThis.fetch = f2;
-  const r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), ENV)).json();
-  globalThis.fetch = null;
-  const h = r.floors.find((f) => f.floor === '1F').rooms.find((x) => x.key === 'haearim').devices[0];
-  assert.equal(h.ok, false); assert.match(h.error, /2201/);
-  assert.equal(r.floors.find((f) => f.floor === '2F').rooms.find((x) => x.key === 'r201').devices[0].ok, true);
+await t('해아림홀은 제어 불가: 상태도 읽지 않고, 제어 요청도 거절, 자동도 건드리지 않는다', async () => {
+  const w = makeWorld({ nowMin: 9 * 60, temps: { haearim: 31 }, items: [item('해아림홀', '09:30', '11:00')] });
+  const hid = w.devices.find((d) => d.alias.includes('해아림홀')).deviceId;
+  await withWorld(w, async () => {
+    const r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), ENV)).json();
+    const room = r.floors.find((f) => f.floor === '1F').rooms.find((x) => x.key === 'haearim');
+    assert.equal(room.noapi, true); assert.equal(room.devices[0].unsupported, true);
+    const res = await (await worker.fetch(new Request('https://x/api/control', { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify({ deviceIds: [hid], action: 'cool', value: 24 }) }), ENV)).json();
+    assert.equal(res.ok, false);
+    await runAuto(ENV, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + 9 * 60 * 60e3));
+  });
+  assert.equal(w.calls.filter((c) => c.url.includes(hid)).length, 0);
+});
+await t('치유장비실 에어컨은 건강증진실 1 로, 탈의실 여/남·비품실은 B1 에 따로 표시', async () => {
+  const w = makeWorld({});
+  await withWorld(w, async () => {
+    const r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), ENV)).json();
+    const f1 = r.floors.find((f) => f.floor === '1F').rooms;
+    assert.equal(f1.find((x) => x.key === 'hp1').devices.length, 4);
+    assert.ok(!f1.find((x) => x.key === 'equip'));
+    const b1 = r.floors.find((f) => f.floor === 'B1').rooms.map((x) => x.key);
+    for (const k of ['dressF', 'dressM', 'supply']) assert.ok(b1.includes(k), k);
+  });
 });
 
 console.log(process.exitCode ? '\n실패 있음' : `\n전부 통과 (${pass}개)`);
