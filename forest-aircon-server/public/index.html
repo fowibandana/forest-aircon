@@ -10,12 +10,12 @@
 :root{
   --bg:#f4f2ec; --card:#ffffff; --ink:#1d2b25; --mute:#6a7a72; --line:#e3e0d6;
   --brand:#1f6f54; --brand-ink:#ffffff; --cool:#2b6fd6; --heat:#d9622b; --off:#8a948f;
-  --ok:#1f8a5b; --warn:#b7791f; --bad:#c0392b; --chip:#eef3ef;
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c0392b; --chip:#eef3ef; --p-neutral:#e9e6dc; --p-room:#fbfaf6;
 }
-@media (prefers-color-scheme:dark){
-  :root{ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
-         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; }
-}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
+         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27; color-scheme:dark} }
+:root[data-theme="dark"]{ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
+         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27; color-scheme:dark}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--bg);color:var(--ink);font-family:'Noto Sans KR','Malgun Gothic',system-ui,sans-serif}
 body{padding:0 16px calc(24px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
@@ -55,6 +55,31 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 /* 층 요약 */
 .floorBar{display:flex;align-items:center;justify-content:space-between;margin:14px 2px 8px;font-size:13.5px;color:var(--mute)}
 .floorBar button{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;color:var(--ink)}
+
+/* 평면도 */
+.plan{margin:2px 0 14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 10px 8px}
+.plan svg{display:block;width:100%;height:auto}
+.plan text{font-family:inherit;fill:var(--ink);text-anchor:middle;pointer-events:none}
+.pl{fill:var(--p-neutral);stroke:var(--card);stroke-width:5}
+.pl.room{fill:var(--p-room);cursor:pointer}
+.pl.room.cool{fill:color-mix(in srgb,var(--cool) 24%,var(--p-room))}
+.pl.room.heat{fill:color-mix(in srgb,var(--heat) 26%,var(--p-room))}
+.pl.room.err{stroke:var(--bad);stroke-dasharray:10 8}
+.pl.room.live{stroke:var(--ok);stroke-width:9}
+.pl.room.sel{stroke:var(--brand);stroke-width:9}
+.pl.void{opacity:.55}
+.plan .t1{font-size:30px;font-weight:700}
+.plan .t2{font-size:40px;font-weight:600;font-variant-numeric:tabular-nums}
+.plan .t3{font-size:24px;fill:var(--mute)}
+.plan .tn{font-size:23px;fill:var(--mute)}
+.pd{fill:var(--off)} .pd.cool{fill:var(--cool)} .pd.heat{fill:var(--heat)} .pd.on{fill:var(--ok)} .pd.err{fill:var(--bad)}
+.planLegend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 4px 2px;font-size:11.5px;color:var(--mute)}
+.planLegend span{display:inline-flex;align-items:center;gap:5px}
+.planLegend i{width:12px;height:12px;border-radius:4px;display:inline-block;border:2px solid transparent}
+.planOut{display:flex;flex-wrap:wrap;gap:6px;margin:8px 2px 0;font-size:12.5px;color:var(--mute);align-items:center}
+.planOut button{padding:5px 10px;border-radius:999px;background:var(--chip);font-size:12.5px;color:var(--ink)}
+.room.flash{animation:fl 1.4s ease}
+@keyframes fl{0%,60%{box-shadow:0 0 0 3px var(--brand)}100%{box-shadow:0 0 0 0 transparent}}
 
 /* 방 카드 */
 .room{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
@@ -122,6 +147,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   </header>
   <div id="err"></div>
   <div id="floorBar" class="floorBar"></div>
+  <div id="plan" class="plan"></div>
   <div id="rooms"></div>
   <div id="others" class="others"></div>
 </main>
@@ -194,6 +220,69 @@ async function load(first) {
 $('refresh').onclick = () => load();
 document.addEventListener('visibilitychange', () => { if (!document.hidden && store.get()) load(); });
 
+/* ── 평면도 ── 주간운영계획 안내 화면(display)의 평면 좌표를 옮겼다: [u0, u1, v0, v1, 종류, 방 키]. 가로 54m × 세로 15m */
+const PW = 1000, PH = 528;   // 세로는 보기 좋게 늘려서 그린다(약 1.9배)
+const PLAN = {
+  '2F': [[0,.773,.43,.56,'corr',''],[0,.073,0,.43,'stairs',''],[.073,.271,0,.43,'core',''],
+    [.275,.522,0,.43,'room','r205'],[.525,.773,0,.43,'room','r204'],
+    [0,.239,.56,1,'room','r201'],[.241,.514,.56,1,'room','r202'],[.517,.773,.56,1,'room','r203'],[.776,1,0,1,'void','']],
+  '1F': [[.19,.766,.42,.57,'corr',''],[0,.073,0,.42,'stairs',''],[.075,.271,0,.42,'core',''],
+    [.274,.763,0,.42,'room','hp2'],[0,.19,.42,1,'room','lobby1'],[.192,.763,.57,1,'room','hp1'],[.766,1,0,1,'room','haearim']],
+  'B1': [[.247,.986,.43,.57,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],
+    [.358,.51,0,.43,'other',''],[.512,.694,0,.43,'other',''],[.695,1,0,.43,'room','media'],
+    [0,.247,.43,1,'room','b1lobby'],[.249,.391,.57,1,'room','b101'],[.393,.774,.57,1,'room','b102'],[.776,1,.57,1,'room','media']],
+};
+const NOTE = { core: '엘리베이터·화장실', corr: '복도', void: '해아림홀 상부(오픈)', stairs: '' };
+function planHtml(F) {
+  const spec = PLAN[F.floor]; if (!spec) { $('plan').innerHTML = ''; return; }
+  const byKey = {}; F.rooms.forEach((r) => { byKey[r.key] = r; });
+  const drawn = new Set(); let g = '';
+  for (const [u0, u1, v0, v1, kind, key] of spec) {
+    const x = u0 * PW, y = v0 * PH, w = (u1 - u0) * PW, h = (v1 - v0) * PH;
+    const rx = 'x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="10"';
+    if (kind !== 'room') {
+      g += `<rect class="pl ${kind === 'void' ? 'void' : ''}" ${rx}/>`;
+      const t = NOTE[kind];
+      if (t && w > 120) g += `<text class="tn" x="${(x + w / 2).toFixed(1)}" y="${(y + h / 2 + 8).toFixed(1)}">${t}</text>`;
+      continue;
+    }
+    const r = byKey[key]; if (!r) { g += `<rect class="pl" ${rx}/>`; continue; }
+    drawn.add(key);
+    const devs = r.devices, ons = devs.filter((d) => d.power === 'ON');
+    const temps = devs.filter((d) => d.ok && d.cur != null).map((d) => d.cur);
+    const avg = temps.length ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10 : null;
+    let cls = 'pl room';
+    if (ons.some((d) => d.mode === 'COOL')) cls += ' cool'; else if (ons.some((d) => d.mode === 'HEAT')) cls += ' heat';
+    if (devs.length && devs.every((d) => !d.ok)) cls += ' err';
+    if (r.schedule.current.length) cls += ' live';
+    const cx = x + w / 2, cy = y + h / 2;
+    g += `<g data-room="${key}"><rect class="${cls}" ${rx}/>`;
+    g += `<text class="t1" x="${cx.toFixed(1)}" y="${(cy - 22).toFixed(1)}">${esc(r.short)}</text>`;
+    g += `<text class="t2" x="${cx.toFixed(1)}" y="${(cy + 22).toFixed(1)}">${avg == null ? '–' : avg + '°'}</text>`;
+    if (devs.length) {
+      const n = devs.length, gap = 30, x0 = cx - (n - 1) * gap / 2;
+      devs.forEach((d, i) => {
+        const c = !d.ok ? 'err' : d.power !== 'ON' ? '' : d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
+        g += `<circle class="pd ${c}" cx="${(x0 + i * gap).toFixed(1)}" cy="${(cy + 58).toFixed(1)}" r="9"/>`;
+      });
+    } else g += `<text class="t3" x="${cx.toFixed(1)}" y="${(cy + 60).toFixed(1)}">에어컨 없음</text>`;
+    g += '</g>';
+  }
+  const out = F.rooms.filter((r) => !drawn.has(r.key));
+  const nOn = (r) => r.devices.filter((d) => d.power === 'ON').length;
+  $('plan').innerHTML = `<svg viewBox="0 0 ${PW} ${PH}" role="img" aria-label="${F.floor} 평면도">${g}</svg>
+    <div class="planLegend"><span><i style="background:color-mix(in srgb,var(--cool) 40%,var(--card))"></i>냉방 중</span><span><i style="background:color-mix(in srgb,var(--heat) 40%,var(--card))"></i>난방 중</span><span><i style="border-color:var(--ok)"></i>지금 프로그램 진행 중</span><span><i style="background:var(--off);border-radius:50%;width:9px;height:9px"></i>에어컨 한 대</span></div>
+    ${out.length ? `<div class="planOut">도면에 없는 방:${out.map((r) => `<button data-room="${r.key}">${esc(r.short)} · ${nOn(r) ? '켜짐 ' + nOn(r) : '꺼짐'}</button>`).join('')}</div>` : ''}`;
+  $('plan').querySelectorAll('[data-room]').forEach((el) => { el.onclick = () => focusRoom(el.dataset.room); });
+}
+function focusRoom(key) {
+  const el = $('room-' + key); if (!el) return;
+  document.querySelectorAll('.pl.sel').forEach((n) => n.classList.remove('sel'));
+  const sel = $('plan').querySelector(`g[data-room="${key}"] rect`); if (sel) sel.classList.add('sel');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+
 /* ── 그리기 ── */
 function devPill(d) {
   const name = esc(shortAlias(d.alias));
@@ -238,6 +327,7 @@ function render() {
   $('floorBar').innerHTML = `<span>에어컨 ${ids.length}대 · 켜짐 ${onIds.length}대</span><button id="floorOff" ${onIds.length ? '' : 'disabled'}>${F.floor} 전체 끄기</button>`;
   $('floorOff').onclick = () => confirmAct(`${F.floor} 전체 끄기`, `켜져 있는 에어컨 ${onIds.length}대를 끕니다.`, onIds, 'off');
 
+  planHtml(F);
   $('rooms').innerHTML = F.rooms.map((r) => {
     const temps = r.devices.filter((x) => x.ok && x.cur != null).map((x) => x.cur);
     const avg = temps.length ? (temps.reduce((p, c) => p + c, 0) / temps.length) : null;
@@ -250,7 +340,7 @@ function render() {
            <button class="cool" data-a="cool">냉방</button><button class="heat" data-a="heat">난방</button>
            <button data-a="off">끄기</button><button data-a="temp">온도</button></div>`
       : '<div class="noac">등록된 에어컨이 없습니다</div>';
-    return `<article class="room"><div class="rHead"><div class="rName">${esc(r.name)}</div>
+    return `<article class="room" id="room-${r.key}"><div class="rHead"><div class="rName">${esc(r.name)}</div>
       <div class="rTemp">${avg == null ? '–' : (Math.round(avg * 10) / 10) + '°'}<small>방 온도</small></div></div>
       ${progHtml(r.schedule, r.scheduled)}${body}</article>`;
   }).join('');
