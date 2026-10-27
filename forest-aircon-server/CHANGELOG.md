@@ -2,6 +2,9 @@
 
 버전은 `src/version.js`, `package.json`, `public/index.html`(APP_VERSION) 세 곳에서 같이 올립니다. 화면 맨 아래에 «화면 vX · 서버 vY»로 표시됩니다.
 
+## 1.3.3 — 2026-10-28
+- KV(forest-aircon-state) 연결: 방별 자동 설정 저장·일시중지 사용 가능
+
 ## 1.3.2 — 2026-10-28
 - 배포 도구(wrangler 4.45 이상)를 package.json 에 고정, 배포 설정 시험(dry-run) 통과
 

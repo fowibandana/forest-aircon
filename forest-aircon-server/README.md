@@ -23,7 +23,7 @@
 
 1. Cloudflare 왼쪽 메뉴 «Storage & Databases → KV» → «Create» → 이름 `forest-aircon-state`
 2. 만들어진 KV의 **ID**를 복사
-3. GitHub의 `forest-aircon-server/wrangler.toml` 맨 아래 세 줄의 `#`을 지우고 `id`에 붙여넣기 → 저장하면 자동 재배포
+3. (연결 완료: `wrangler.toml`에 KV `forest-aircon-state`가 이미 들어 있습니다. 다른 계정에서 새로 배포하면 그 계정의 KV ID로 바꾸세요.)
 
 ## 기준값 (src/config.js — 제가 임의로 정한 기본값)
 | 항목 | 기본값 |

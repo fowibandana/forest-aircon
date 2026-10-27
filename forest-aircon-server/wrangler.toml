@@ -19,6 +19,6 @@ enabled = true   # 자동 제어가 무엇을 했는지 Cloudflare 화면의 «�
 AUTO_MODE = "dry"
 
 # 방별 자동 설정 저장·일시중지 스위치를 쓰려면 KV를 만들어 STATE 이름으로 연결하세요(README «KV 연결»).
-# [[kv_namespaces]]
-# binding = "STATE"
-# id = "여기에_KV_id"
+[[kv_namespaces]]
+binding = "STATE"
+id = "5e629344565744e39123a939cd1bb3b0"   # forest-aircon-state
