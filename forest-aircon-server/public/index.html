@@ -17,11 +17,14 @@
   --bg:#f4f2ec; --card:#ffffff; --ink:#1d2b25; --mute:#6a7a72; --line:#e3e0d6;
   --brand:#1f6f54; --brand-ink:#ffffff; --cool:#2b6fd6; --heat:#d9622b; --off:#8a948f;
   --ok:#1f8a5b; --warn:#b7791f; --bad:#c0392b; --chip:#eef3ef; --p-neutral:#e9e6dc; --p-room:#fbfaf6;
+  --wall:#4d6157; --glass:#b9dcec; --p-corr:#ece9de; --p-wet:#e3ecee; --p-stair:#f1efe7; --paper:#f7f5ee;
 }
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
-         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27; color-scheme:dark} }
+         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27;
+         --wall:#a7bbb0; --glass:#2f5a70; --p-corr:#2a332f; --p-wet:#25343a; --p-stair:#2c3531; --paper:#171d1a; color-scheme:dark} }
 :root[data-theme="dark"]{ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
-         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27; color-scheme:dark}
+         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27;
+         --wall:#a7bbb0; --glass:#2f5a70; --p-corr:#2a332f; --p-wet:#25343a; --p-stair:#2c3531; --paper:#171d1a; color-scheme:dark}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--bg);color:var(--ink);font-family:'Noto Sans KR','Malgun Gothic',system-ui,sans-serif}
 body{padding:0 16px calc(24px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
@@ -63,24 +66,58 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .floorBar button{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;color:var(--ink)}
 
 /* 평면도 */
-.plan{margin:2px 0 14px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px 10px 8px}
-.plan svg{display:block;width:100%;height:auto}
+.plan{margin:2px 0 14px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:10px 10px 8px}
+.plan svg{display:block;width:100%;height:auto;overflow:visible}
+.plan .bldg{filter:drop-shadow(0 3px 7px rgba(20,35,28,.20))}
 .plan text{font-family:inherit;fill:var(--ink);text-anchor:middle;pointer-events:none}
-.pl{fill:var(--p-neutral);stroke:var(--card);stroke-width:5}
+.pl{fill:var(--p-neutral);stroke:var(--wall);stroke-width:3.5;stroke-linejoin:round}
 .pl.room{fill:var(--p-room);cursor:pointer}
-.pl.room.cool{fill:color-mix(in srgb,var(--cool) 24%,var(--p-room))}
-.pl.room.heat{fill:color-mix(in srgb,var(--heat) 26%,var(--p-room))}
-.pl.room.err{stroke:var(--bad);stroke-dasharray:10 8}
+.pl.room.cool{fill:color-mix(in srgb,var(--cool) 20%,var(--p-room))}
+.pl.room.heat{fill:color-mix(in srgb,var(--heat) 22%,var(--p-room))}
+.pl.room.err{stroke-dasharray:10 7}
 .pl.room.na{fill:var(--p-neutral)}
-.pd.na{fill:none;stroke:var(--off);stroke-width:3}
-.pl.room.live{stroke:var(--ok);stroke-width:9}
-.pl.room.sel{stroke:var(--brand);stroke-width:9}
-.pl.void{opacity:.55}
-.plan .t1{font-size:30px;font-weight:700}
-.plan .t2{font-size:40px;font-weight:600;font-variant-numeric:tabular-nums}
-.plan .t3{font-size:24px;fill:var(--mute)}
-.plan .tn{font-size:23px;fill:var(--mute)}
-.pd{fill:var(--off)} .pd.cool{fill:var(--cool)} .pd.heat{fill:var(--heat)} .pd.on{fill:var(--ok)} .pd.err{fill:var(--bad)}
+.pl.corr{fill:var(--p-corr)}
+.pl.wet{fill:var(--p-wet)}
+.pl.stair{fill:var(--p-stair)}
+.pl.shaft{fill:var(--p-neutral)}
+.hl{fill:none;stroke:transparent;stroke-width:8;pointer-events:none;stroke-linejoin:round}
+.hl.live{stroke:var(--ok)}
+.hl.sel{stroke:var(--brand);stroke-width:9}
+.outline{fill:none;stroke:var(--wall);stroke-width:9;stroke-linejoin:round;pointer-events:none}
+.pt-l{stroke:var(--wall);stroke-width:1;opacity:.09}
+.pt-t{stroke:var(--wall);stroke-width:1;opacity:.16;fill:none}
+.win{fill:var(--glass);stroke:var(--wall);stroke-width:2}
+.win-m{stroke:var(--wall);stroke-width:1.5}
+.door-gap{fill:var(--p-corr)}
+.door-leaf{stroke:var(--wall);stroke-width:2.5;stroke-linecap:round;fill:none}
+.door-arc{stroke:var(--wall);stroke-width:1.2;stroke-dasharray:3 3;fill:none;opacity:.7}
+.st-tread{stroke:var(--wall);stroke-width:1.6;opacity:.8}
+.st-fl{fill:none;stroke:var(--wall);stroke-width:2}
+.st-ar{stroke:var(--wall);stroke-width:2.4;fill:none;stroke-linecap:round}
+.st-ah{fill:var(--wall)}
+.ev-car{fill:none;stroke:var(--wall);stroke-width:2.4}
+.ev-x{stroke:var(--wall);stroke-width:1.4;opacity:.6}
+.ev-d{fill:var(--wall)}
+.fx{fill:var(--card);stroke:var(--wall);stroke-width:1.8}
+.fx-l{stroke:var(--wall);stroke-width:2;stroke-linecap:round}
+.fx-p{fill:var(--wall);opacity:.85}
+.plan .t1{font-size:28px;font-weight:700;letter-spacing:-.01em}
+.plan .t2{font-size:38px;font-weight:600;font-variant-numeric:tabular-nums}
+.plan .t3{font-size:21px;fill:var(--mute)}
+.plan .tn{font-size:19px;fill:var(--mute);font-weight:600}
+.plan .tm{font-size:15px;fill:var(--mute);font-weight:600}
+.plan .live-t{font-size:17px;font-weight:700;fill:var(--ok)}
+.ac-b{fill:var(--card);stroke:var(--off);stroke-width:2}
+.ac-i{fill:none;stroke:var(--off);stroke-width:2}
+.ac-v{stroke:var(--off);stroke-width:2;stroke-linecap:round}
+.ac-glow{fill:none;opacity:0}
+.ac.cool .ac-b{fill:color-mix(in srgb,var(--cool) 24%,var(--card));stroke:var(--cool)} .ac.cool .ac-i,.ac.cool .ac-v{stroke:var(--cool)} .ac.cool .ac-glow{fill:var(--cool);opacity:.17;animation:glow 2.8s ease-in-out infinite}
+.ac.heat .ac-b{fill:color-mix(in srgb,var(--heat) 26%,var(--card));stroke:var(--heat)} .ac.heat .ac-i,.ac.heat .ac-v{stroke:var(--heat)} .ac.heat .ac-glow{fill:var(--heat);opacity:.17;animation:glow 2.8s ease-in-out infinite}
+.ac.on .ac-b{fill:color-mix(in srgb,var(--ok) 22%,var(--card));stroke:var(--ok)} .ac.on .ac-i,.ac.on .ac-v{stroke:var(--ok)}
+.ac.bad .ac-b{stroke:var(--bad);stroke-dasharray:4 3} .ac.bad .ac-i,.ac.bad .ac-v{stroke:var(--bad)}
+.ac.na{opacity:.6} .ac.na .ac-b{stroke-dasharray:4 3}
+@keyframes glow{50%{opacity:.04}}
+@media (prefers-reduced-motion:reduce){.ac-glow{animation:none!important}}
 .planLegend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:8px 4px 2px;font-size:11.5px;color:var(--mute)}
 .planLegend span{display:inline-flex;align-items:center;gap:5px}
 .planLegend i{width:12px;height:12px;border-radius:4px;display:inline-block;border:2px solid transparent}
@@ -237,7 +274,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.3.3';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.4.0';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null;
 
@@ -304,26 +341,108 @@ const PLAN = {
   '2F': [[0.0,1,0.43,0.56,'corr',''],[0.0,0.094,0,0.43,'stairs',''],[0.094,0.351,0,0.43,'core',''],[0.356,0.675,0,0.43,'room','r205'],[0.679,1,0,0.43,'room','r204'],[0.0,0.309,0.56,1,'room','r201'],[0.312,0.665,0.56,1,'room','r202'],[0.669,1,0.56,1,'room','r203']],
   '1F': [[.19,.766,.42,.57,'corr',''],[0,.073,0,.42,'stairs',''],[.075,.271,0,.42,'core',''],
     [.274,.763,0,.42,'room','hp2'],[0,.19,.42,1,'room','lobby1'],[.192,.763,.57,1,'room','hp1'],[.766,1,0,1,'room','haearim']],
-  'B1': [[.247,.986,.43,.57,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],
+  'B1': [[.247,1,.43,.57,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],
     [.358,.469,0,.43,'room','dressF'],[.471,.582,0,.43,'room','dressM'],[.584,.694,0,.43,'room','supply'],[.695,1,0,.43,'room','media'],
     [0,.247,.43,1,'room','b1lobby'],[.249,.391,.57,1,'room','b101'],[.393,.774,.57,1,'room','b102'],[.776,1,.57,1,'room','media']],
 };
-const NOTE = { core: '엘리베이터·화장실', corr: '복도', stairs: '' };
+
+const WALL_W = 3.5, PAD = 20, f1 = (n) => (+n).toFixed(1);
+/* 계단: ㄷ자(꺾인) 계단. 왼쪽 줄은 올라가고 오른쪽 줄은 내려오는 모양으로 그린다 */
+function stairsSvg(x, y, w, h) {
+  const m = 7, gap = 4, land = Math.min(36, h * .16);
+  const fw = (w - 2 * m - gap) / 2, top = y + m + land, bot = y + h - m;
+  const n = Math.max(4, Math.floor((bot - top) / 11)), step = (bot - top) / n;
+  let g = `<rect class="pl stair" x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" rx="3"/>`;
+  [0, 1].forEach((k) => {
+    const fx = x + m + k * (fw + gap);
+    g += `<rect class="st-fl" x="${f1(fx)}" y="${f1(top)}" width="${f1(fw)}" height="${f1(bot - top)}"/>`;
+    for (let i = 1; i < n; i++) g += `<line class="st-tread" x1="${f1(fx)}" x2="${f1(fx + fw)}" y1="${f1(top + i * step)}" y2="${f1(top + i * step)}"/>`;
+  });
+  g += `<rect class="st-fl" x="${f1(x + m)}" y="${f1(y + m)}" width="${f1(w - 2 * m)}" height="${f1(land - 3)}"/>`;
+  const cl = x + m + fw / 2, cr = x + m + fw + gap + fw / 2;
+  g += `<path class="st-ar" d="M${f1(cl)} ${f1(bot - 12)}V${f1(top + 16)}"/><path class="st-ah" d="M${f1(cl - 5.5)} ${f1(top + 22)}L${f1(cl)} ${f1(top + 11)}L${f1(cl + 5.5)} ${f1(top + 22)}Z"/>`;
+  g += `<path class="st-ar" d="M${f1(cr)} ${f1(top + 12)}V${f1(bot - 16)}"/><path class="st-ah" d="M${f1(cr - 5.5)} ${f1(bot - 22)}L${f1(cr)} ${f1(bot - 11)}L${f1(cr + 5.5)} ${f1(bot - 22)}Z"/>`;
+  if (w > 60) g += `<text class="tm" x="${f1(x + w / 2)}" y="${f1(y + m + land / 2 + 5)}">계단</text>`;
+  return g;
+}
+/* 엘리베이터: 승강로 + 카(X 표시) + 복도 쪽 문 */
+function elevatorSvg(x, y, w, h) {
+  const s = Math.min(w - 20, 44), cx = x + w / 2, cy = y + h - s - 18;
+  let g = `<rect class="pl shaft" x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}"/>`;
+  g += `<text class="tm" x="${f1(cx)}" y="${f1(y + 26)}">E/V</text>`;
+  g += `<rect class="ev-car" x="${f1(cx - s / 2)}" y="${f1(cy)}" width="${f1(s)}" height="${f1(s)}"/>`;
+  g += `<path class="ev-x" d="M${f1(cx - s / 2)} ${f1(cy)}L${f1(cx + s / 2)} ${f1(cy + s)}M${f1(cx + s / 2)} ${f1(cy)}L${f1(cx - s / 2)} ${f1(cy + s)}"/>`;
+  g += `<rect class="ev-d" x="${f1(cx - s / 2 - 3)}" y="${f1(y + h - 12)}" width="${f1(s / 2 + 1)}" height="6"/><rect class="ev-d" x="${f1(cx + 2)}" y="${f1(y + h - 12)}" width="${f1(s / 2 + 1)}" height="6"/>`;
+  return g;
+}
+/* 화장실: 칸막이 + 변기, 세면대, 남/여 표시 */
+function restroomSvg(x, y, w, h, female) {
+  let g = `<rect class="pl wet" x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}"/><rect x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" fill="url(#pt-tile)" pointer-events="none"/>`;
+  const n = w >= 84 ? 3 : 2, sw = (w - 12) / n, sh = Math.min(58, h * .27);
+  for (let i = 0; i < n; i++) {
+    const sx = x + 6 + i * sw, cx = sx + sw / 2;
+    if (i > 0) g += `<line class="fx-l" x1="${f1(sx)}" x2="${f1(sx)}" y1="${f1(y + 4)}" y2="${f1(y + 4 + sh)}"/>`;
+    g += `<rect class="fx" x="${f1(cx - 6.5)}" y="${f1(y + 8)}" width="13" height="8" rx="2"/><ellipse class="fx" cx="${f1(cx)}" cy="${f1(y + 27)}" rx="6.5" ry="8.5"/>`;
+  }
+  g += `<line class="fx-l" x1="${f1(x + 6)}" x2="${f1(x + w - 6)}" y1="${f1(y + 4 + sh)}" y2="${f1(y + 4 + sh)}" opacity=".5"/>`;
+  const py = y + h * .45, cx = x + w / 2;
+  g += `<circle class="fx-p" cx="${f1(cx)}" cy="${f1(py)}" r="4.8"/>`;
+  g += female ? `<path class="fx-p" d="M${f1(cx)} ${f1(py + 7)}L${f1(cx - 7.5)} ${f1(py + 23)}H${f1(cx + 7.5)}Z"/>` : `<rect class="fx-p" x="${f1(cx - 5)}" y="${f1(py + 7)}" width="10" height="16" rx="3"/>`;
+  g += `<text class="tm" x="${f1(cx)}" y="${f1(py + 41)}">${female ? '여자' : '남자'}</text>`;
+  const cy = y + h * .72;
+  g += `<rect class="fx" x="${f1(x + 9)}" y="${f1(cy)}" width="${f1(w - 18)}" height="11" rx="3"/>`;
+  [.3, .7].forEach((k) => { g += `<ellipse class="fx" cx="${f1(x + w * k)}" cy="${f1(cy + 5.5)}" rx="6" ry="3.6"/>`; });
+  g += `<rect class="door-gap" x="${f1(cx - 13)}" y="${f1(y + h - 4)}" width="26" height="8"/>`;
+  return g;
+}
+function coreSvg(x, y, w, h) {
+  const ew = Math.max(54, Math.min(70, w * .3)), rw = (w - ew) / 2;
+  return elevatorSvg(x, y, ew, h) + restroomSvg(x + ew, y, rw, h, true) + restroomSvg(x + ew + rw, y, rw, h, false);
+}
+function corrSvg(x, y, w, h) {
+  let g = `<rect class="pl corr" x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}"/>`;
+  g += `<line x1="${f1(x + 18)}" x2="${f1(x + w - 18)}" y1="${f1(y + h / 2)}" y2="${f1(y + h / 2)}" stroke="var(--wall)" stroke-width="1.3" stroke-dasharray="2 9" stroke-linecap="round" opacity=".5"/>`;
+  if (w > 150) g += `<text class="tm" x="${f1(x + 46)}" y="${f1(y + h / 2 + 5)}" style="paint-order:stroke;stroke:var(--p-corr);stroke-width:6px">복도</text>`;
+  return g;
+}
+/* 에어컨(천장형 4방향) 아이콘 */
+function acSvg(cx, cy, cls) {
+  return `<g class="ac ${cls}" transform="translate(${f1(cx)} ${f1(cy)})"><circle class="ac-glow" r="19"/><rect class="ac-b" x="-11" y="-11" width="22" height="22" rx="5"/><rect class="ac-i" x="-4.5" y="-4.5" width="9" height="9" rx="2"/><path class="ac-v" d="M0 -11v3.5M0 11v-3.5M-11 0h3.5M11 0h-3.5"/></g>`;
+}
+/* 창문(바깥 벽) / 문(복도 쪽 벽) */
+function windowsSvg(x, y, w, h, edges) {
+  let g = '';
+  const seg = (len) => { const n = Math.max(1, Math.floor(len / 120)), l = Math.min(70, len * .34); return Array.from({ length: n }, (_, i) => [((i + .5) / n) * len - l / 2, l]); };
+  if (edges.t) seg(w).forEach(([o, l]) => { g += `<rect class="win" x="${f1(x + o)}" y="${f1(y - 4)}" width="${f1(l)}" height="8" rx="1.5"/><line class="win-m" x1="${f1(x + o + l / 2)}" x2="${f1(x + o + l / 2)}" y1="${f1(y - 4)}" y2="${f1(y + 4)}"/>`; });
+  if (edges.b) seg(w).forEach(([o, l]) => { g += `<rect class="win" x="${f1(x + o)}" y="${f1(y + h - 4)}" width="${f1(l)}" height="8" rx="1.5"/><line class="win-m" x1="${f1(x + o + l / 2)}" x2="${f1(x + o + l / 2)}" y1="${f1(y + h - 4)}" y2="${f1(y + h + 4)}"/>`; });
+  if (edges.l) seg(h).forEach(([o, l]) => { g += `<rect class="win" x="${f1(x - 4)}" y="${f1(y + o)}" width="8" height="${f1(l)}" rx="1.5"/><line class="win-m" y1="${f1(y + o + l / 2)}" y2="${f1(y + o + l / 2)}" x1="${f1(x - 4)}" x2="${f1(x + 4)}"/>`; });
+  if (edges.r) seg(h).forEach(([o, l]) => { g += `<rect class="win" x="${f1(x + w - 4)}" y="${f1(y + o)}" width="8" height="${f1(l)}" rx="1.5"/><line class="win-m" y1="${f1(y + o + l / 2)}" y2="${f1(y + o + l / 2)}" x1="${f1(x + w - 4)}" x2="${f1(x + w + 4)}"/>`; });
+  return g;
+}
+function doorSvg(side, x, y, w, h) {   // side: b(아래 벽) | t(위 벽) | l(왼쪽 벽)
+  const dw = Math.min(42, (side === 'l' ? h : w) * .36);
+  const hxo = w < 160 ? 9 : w * .28;
+  if (side === 'b') { const hx = x + hxo, yy = y + h; return `<rect class="door-gap" x="${f1(hx)}" y="${f1(yy - 4)}" width="${f1(dw)}" height="8"/><path class="door-arc" d="M${f1(hx)} ${f1(yy - dw)}A${f1(dw)} ${f1(dw)} 0 0 1 ${f1(hx + dw)} ${f1(yy)}"/><line class="door-leaf" x1="${f1(hx)}" y1="${f1(yy)}" x2="${f1(hx)}" y2="${f1(yy - dw)}"/>`; }
+  if (side === 't') { const hx = x + hxo, yy = y; return `<rect class="door-gap" x="${f1(hx)}" y="${f1(yy - 4)}" width="${f1(dw)}" height="8"/><path class="door-arc" d="M${f1(hx)} ${f1(yy + dw)}A${f1(dw)} ${f1(dw)} 0 0 0 ${f1(hx + dw)} ${f1(yy)}"/><line class="door-leaf" x1="${f1(hx)}" y1="${f1(yy)}" x2="${f1(hx)}" y2="${f1(yy + dw)}"/>`; }
+  const hy = y + h * .5 - dw / 2;
+  return `<rect class="door-gap" x="${f1(x - 4)}" y="${f1(hy)}" width="8" height="${f1(dw)}"/><path class="door-arc" d="M${f1(x + dw)} ${f1(hy)}A${f1(dw)} ${f1(dw)} 0 0 1 ${f1(x)} ${f1(hy + dw)}"/><line class="door-leaf" x1="${f1(x)}" y1="${f1(hy)}" x2="${f1(x + dw)}" y2="${f1(hy)}"/>`;
+}
+
 function planHtml(F) {
   const spec = PLAN[F.floor]; if (!spec) { $('plan').innerHTML = ''; return; }
   const PH = PH_OF[F.floor] || PH0;
   const byKey = {}; F.rooms.forEach((r) => { byKey[r.key] = r; });
-  const drawn = new Set(); let g = '';
+  const corr = spec.find((q) => q[4] === 'corr');
+  const drawn = new Set();
+  let floorL = '', hl = '', over = '', txt = '';
   for (const [u0, u1, v0, v1, kind, key] of spec) {
     const x = u0 * PW, y = v0 * PH, w = (u1 - u0) * PW, h = (v1 - v0) * PH;
-    const rx = 'x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="10"';
-    if (kind !== 'room') {
-      g += `<rect class="pl ${kind === 'void' ? 'void' : ''}" ${rx}/>`;
-      const t = NOTE[kind];
-      if (t && w > 120) g += `<text class="tn" x="${(x + w / 2).toFixed(1)}" y="${(y + h / 2 + 8).toFixed(1)}">${t}</text>`;
-      continue;
-    }
-    const r = byKey[key]; if (!r) { g += `<rect class="pl" ${rx}/>`; continue; }
+    if (kind === 'corr') { floorL += corrSvg(x, y, w, h); continue; }
+    if (kind === 'stairs') { floorL += stairsSvg(x, y, w, h); continue; }
+    if (kind === 'core') { floorL += coreSvg(x, y, w, h); continue; }
+    const rx = `x="${f1(x)}" y="${f1(y)}" width="${f1(w)}" height="${f1(h)}" rx="3"`;
+    const r = byKey[key];
+    if (!r) { floorL += `<rect class="pl" ${rx}/>`; continue; }
     drawn.add(key);
     const devs = r.devices, ons = devs.filter((d) => d.power === 'ON');
     const temps = devs.filter((d) => d.ok && d.cur != null).map((d) => d.cur);
@@ -331,32 +450,45 @@ function planHtml(F) {
     let cls = 'pl room';
     if (ons.some((d) => d.mode === 'COOL')) cls += ' cool'; else if (ons.some((d) => d.mode === 'HEAT')) cls += ' heat';
     if (r.noapi) cls += ' na'; else if (devs.length && devs.every((d) => !d.ok)) cls += ' err';
-    if (r.schedule.current.length) cls += ' live';
-    const cx = x + w / 2, cy = y + h / 2;
-    g += `<g data-room="${key}"><rect class="${cls}" ${rx}/>`;
-    g += `<text class="t1" x="${cx.toFixed(1)}" y="${(cy - 22).toFixed(1)}">${esc(r.short)}</text>`;
-    g += `<text class="t2" x="${cx.toFixed(1)}" y="${(cy + 22).toFixed(1)}">${avg == null ? '–' : avg + '°'}</text>`;
+    floorL += `<rect class="${cls}" data-room="${key}" ${rx}/><rect ${rx} fill="url(#pt-floor)" pointer-events="none"/>`;
+    hl += `<rect class="hl ${r.schedule.current.length ? 'live' : ''}" data-room="${key}" ${rx}/>`;
+    // 창문(건물 바깥 벽) · 문(복도 쪽 벽)
+    const ex = { t: v0 < .001, b: v1 > .999, l: u0 < .001, r: u1 > .999 };
+    over += windowsSvg(x, y, w, h, ex);
+    if (corr) {
+      const [c0, c1, d0, d1] = corr;
+      if (v1 <= d0 + .02 && u0 < c1 - .02 && u1 > c0 + .02) over += doorSvg('b', x, y, w, h);
+      else if (v0 >= d1 - .02 && u0 < c1 - .02 && u1 > c0 + .02) over += doorSvg('t', x, y, w, h);
+      else if (u0 >= c1 - .02 && v0 < d1 && v1 > d0) over += doorSvg('l', x, y, w, h);
+    }
+    // 글자와 에어컨
+    const cx = x + w / 2, cy = y + h / 2, big = h > 150;
+    txt += `<g data-room="${key}"><text class="t1" x="${f1(cx)}" y="${f1(cy - (big ? 26 : 18))}">${esc(r.short)}</text>`;
+    txt += `<text class="t2" x="${f1(cx)}" y="${f1(cy + (big ? 18 : 22))}">${avg == null ? '–' : avg + '°'}</text>`;
+    if (r.schedule.current.length) txt += `<text class="live-t" x="${f1(cx)}" y="${f1(cy + (big ? 46 : 46))}">● 진행 중</text>`;
     if (devs.length) {
-      const n = devs.length, gap = 30, x0 = cx - (n - 1) * gap / 2;
+      const n = devs.length, gap = Math.min(36, (w - 30) / n), x0 = cx - (n - 1) * gap / 2, ay = cy + (big ? 78 : 78);
       devs.forEach((d, i) => {
-        const c = d.unsupported ? 'na' : !d.ok ? 'err' : d.power !== 'ON' ? '' : d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
-        g += `<circle class="pd ${c}" cx="${(x0 + i * gap).toFixed(1)}" cy="${(cy + 58).toFixed(1)}" r="9"/>`;
+        const c = d.unsupported ? 'na' : !d.ok ? 'bad' : d.power !== 'ON' ? '' : d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
+        txt += acSvg(x0 + i * gap, Math.min(ay, y + h - 26), c);
       });
-      if (r.noapi) g += `<text class="t3" x="${cx.toFixed(1)}" y="${(cy + 92).toFixed(1)}">앱에서만 조작</text>`;
-    } else g += `<text class="t3" x="${cx.toFixed(1)}" y="${(cy + 60).toFixed(1)}">에어컨 없음</text>`;
-    g += '</g>';
+      if (r.noapi) txt += `<text class="t3" x="${f1(cx)}" y="${f1(Math.min(ay, y + h - 26) + 36)}">앱에서만 조작</text>`;
+    } else txt += `<text class="t3" x="${f1(cx)}" y="${f1(cy + 62)}">에어컨 없음</text>`;
+    txt += '</g>';
   }
   const out = F.rooms.filter((r) => !drawn.has(r.key));
   const nOn = (r) => r.devices.filter((d) => d.power === 'ON').length;
-  $('plan').innerHTML = `<svg viewBox="0 0 ${PW} ${PH}" role="img" aria-label="${F.floor} 평면도">${g}</svg>
-    <div class="planLegend"><span><i style="background:color-mix(in srgb,var(--cool) 40%,var(--card))"></i>냉방 중</span><span><i style="background:color-mix(in srgb,var(--heat) 40%,var(--card))"></i>난방 중</span><span><i style="border-color:var(--ok)"></i>지금 프로그램 진행 중</span><span><i style="background:var(--off);border-radius:50%;width:9px;height:9px"></i>에어컨 한 대</span></div>
+  const defs = `<defs><pattern id="pt-floor" width="16" height="16" patternUnits="userSpaceOnUse"><path class="pt-l" d="M0 15.5H16"/></pattern><pattern id="pt-tile" width="12" height="12" patternUnits="userSpaceOnUse"><path class="pt-t" d="M12 0V12M0 12H12"/></pattern></defs>`;
+  $('plan').innerHTML = `<svg viewBox="0 0 ${PW + PAD * 2} ${PH + PAD * 2}" role="img" aria-label="${F.floor} 평면도">${defs}
+    <g transform="translate(${PAD} ${PAD})"><g class="bldg">${floorL}</g>${hl}<rect class="outline" x="0" y="0" width="${PW}" height="${PH}" rx="6"/>${over}${txt}</g></svg>
+    <div class="planLegend"><span><i style="background:color-mix(in srgb,var(--cool) 40%,var(--card))"></i>냉방 중</span><span><i style="background:color-mix(in srgb,var(--heat) 40%,var(--card))"></i>난방 중</span><span><i style="border-color:var(--ok)"></i>프로그램 진행 중</span><span>천장형 에어컨: 색이 있으면 켜짐</span></div>
     ${out.length ? `<div class="planOut">도면에 없는 방:${out.map((r) => `<button data-room="${r.key}">${esc(r.short)} · ${nOn(r) ? '켜짐 ' + nOn(r) : '꺼짐'}</button>`).join('')}</div>` : ''}`;
-  $('plan').querySelectorAll('[data-room]').forEach((el) => { el.onclick = () => focusRoom(el.dataset.room); });
+  $('plan').onclick = (e) => { const el = e.target.closest('[data-room]'); if (el) focusRoom(el.dataset.room); };
 }
 function focusRoom(key) {
   const el = $('room-' + key); if (!el) return;
-  document.querySelectorAll('.pl.sel').forEach((n) => n.classList.remove('sel'));
-  const sel = $('plan').querySelector(`g[data-room="${key}"] rect`); if (sel) sel.classList.add('sel');
+  document.querySelectorAll('.hl.sel').forEach((n) => n.classList.remove('sel'));
+  const sel = $('plan').querySelector(`.hl[data-room="${key}"]`); if (sel) sel.classList.add('sel');
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
