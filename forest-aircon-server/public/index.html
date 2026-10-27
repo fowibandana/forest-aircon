@@ -100,13 +100,6 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .prog .nx{color:var(--mute)}
 .prog .none{color:var(--mute)}
 .devs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;background:var(--chip);font-size:12.5px}
-.pill i{width:7px;height:7px;border-radius:50%;background:var(--off);display:inline-block}
-.pill.cool i{background:var(--cool)} .pill.heat i{background:var(--heat)} .pill.on i{background:var(--ok)}
-.pill.err{color:var(--bad)}
-.pill.na{color:var(--mute);border:1px dashed var(--line);background:transparent}
-.autoLine{margin-top:9px;font-size:12.5px;color:var(--mute)}
-.autoLine b{color:var(--ink);font-weight:600}
 .act{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
 .act button{padding:11px 0;border-radius:12px;border:1px solid var(--line);font-weight:600;font-size:14px;background:var(--card)}
 .act .cool{color:var(--cool)} .act .heat{color:var(--heat)}
@@ -114,6 +107,45 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .act button:disabled{opacity:.4}
 .noac{margin-top:10px;font-size:13px;color:var(--mute);line-height:1.5}
 .room.na{border-style:dashed}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:13px 13px 12px;border-radius:16px;border:1.5px solid var(--line);background:var(--card);text-align:left;min-height:96px;position:relative}
+.tile:last-child:nth-child(odd){grid-column:1/-1}
+.tile .tp{font-weight:700;font-size:16px;letter-spacing:-.01em;padding-right:22px}
+.tile .ts{font-size:13.5px;color:var(--mute)}
+.tile .tc{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:auto}
+.tile .tc small{font-size:11.5px;font-weight:500;color:var(--mute);margin-left:4px}
+.tile i{position:absolute;right:13px;top:15px;width:11px;height:11px;border-radius:50%;background:var(--off)}
+.tile.cool{border-color:var(--cool);background:color-mix(in srgb,var(--cool) 9%,var(--card))} .tile.cool i{background:var(--cool)} .tile.cool .ts{color:var(--cool)}
+.tile.heat{border-color:var(--heat);background:color-mix(in srgb,var(--heat) 9%,var(--card))} .tile.heat i{background:var(--heat)} .tile.heat .ts{color:var(--heat)}
+.tile.on{border-color:var(--ok)} .tile.on i{background:var(--ok)}
+.tile.tbad{border-color:var(--bad);border-style:dashed} .tile.tbad .ts{color:var(--bad)} .tile.tbad i{background:var(--bad)}
+.tile.na{border-style:dashed;cursor:default} 
+.tile:active{transform:scale(.985)}
+.roomAct{display:flex;gap:8px;margin-top:10px}
+.roomAct button{flex:1;padding:9px 0;border-radius:12px;border:1px solid var(--line);font-weight:600;font-size:13px;background:var(--card);color:var(--mute)}
+.roomAct .cool{color:var(--cool)} .roomAct .heat{color:var(--heat)}
+.autoBox{margin-top:11px;padding:10px 12px;border-radius:12px;background:var(--chip);font-size:12.5px;line-height:1.5;color:var(--mute);display:flex;gap:10px;align-items:flex-start}
+.autoBox .tx{flex:1;min-width:0} .autoBox b{color:var(--ink);font-weight:600} .autoBox .std{display:block;margin-top:2px}
+.autoBox button{flex:none;padding:7px 11px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12.5px;color:var(--ink);font-weight:600}
+.tagc{display:inline-block;padding:1px 7px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:11px;margin-left:5px;color:var(--ink)}
+.mbtns{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px}
+.mbtns button{padding:15px 0;border-radius:14px;border:1.5px solid var(--line);font-weight:700;font-size:15.5px;background:var(--card)}
+.mbtns .cool{color:var(--cool);border-color:color-mix(in srgb,var(--cool) 45%,var(--line))} .mbtns .heat{color:var(--heat);border-color:color-mix(in srgb,var(--heat) 45%,var(--line))}
+.mbtns button:active{background:var(--chip)}
+.devS{font-size:13.5px;color:var(--mute);margin-bottom:6px}
+.close{width:100%;padding:12px;border-radius:12px;border:1px solid var(--line);font-weight:600}
+.srow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.srow:first-of-type{border-top:0}
+.srow .sl{flex:1;font-size:14px;font-weight:600} .srow .sl small{display:block;font-weight:400;font-size:11.5px;color:var(--mute);margin-top:1px}
+.srow .sv{display:flex;align-items:center;gap:6px}
+.srow .sv button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);font-size:19px;line-height:1}
+.srow .sv output{min-width:54px;text-align:center;font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.sum{margin:10px 0 4px;padding:10px 12px;border-radius:12px;background:var(--chip);font-size:12.5px;line-height:1.6;color:var(--mute)}
+.sum b{color:var(--ink)}
+.sw{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;padding:4px 0 10px}
+.sw input{width:22px;height:22px;accent-color:var(--brand)}
+.sNote{font-size:12.5px;color:var(--warn);margin:6px 0}
+@media (min-width:980px){ .tiles{grid-template-columns:repeat(2,minmax(0,1fr))} }
 
 /* 컴퓨터(넓은 화면): 왼쪽 평면도, 오른쪽 방 카드 */
 @media (min-width:980px){
@@ -126,11 +158,12 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
   .tabs{max-width:520px}
 }
 
+.ver{margin:18px 0 6px;text-align:center;font-size:11.5px;color:var(--mute)}
 .others{margin-top:6px;font-size:13px;color:var(--mute);line-height:1.5}
 .err{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:12px;padding:12px;font-size:13.5px;margin:12px 0}
 
 /* 시트·토스트 */
-dialog{border:0;border-radius:18px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,360px);margin:auto}
+dialog{border:0;border-radius:18px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,380px);margin:auto;max-height:92vh;overflow:auto}
 dialog::backdrop{background:rgba(0,0,0,.45)}
 dialog h3{font-size:17px;margin-bottom:6px}
 dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
@@ -171,6 +204,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   <div id="plan" class="plan"></div>
   <div id="rooms"></div>
   <div id="others" class="others"></div>
+  <footer class="ver" id="ver"></footer>
 </main>
 
 <dialog id="dlg">
@@ -179,11 +213,31 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   <div id="dBody"></div>
   <div class="row2"><button id="dNo">취소</button><button class="go" id="dYes">확인</button></div>
 </dialog>
+<dialog id="dev">
+  <h3 id="devT"></h3>
+  <p class="devS" id="devS"></p>
+  <div class="stepper"><button id="dvM">−</button><output id="dvV"></output><button id="dvP">+</button></div>
+  <div class="mbtns">
+    <button class="cool" data-a="cool">냉방 켜기</button><button class="heat" data-a="heat">난방 켜기</button>
+    <button data-a="off">끄기</button><button data-a="temp">온도만 바꾸기</button>
+  </div>
+  <button class="close" id="dvX">닫기</button>
+</dialog>
+<dialog id="set">
+  <h3 id="setT"></h3>
+  <p id="setP">이 방에만 적용되는 기준입니다. 다른 방은 영향을 받지 않아요.</p>
+  <label class="sw"><input type="checkbox" id="sEn"> 이 방 자동 제어 사용</label>
+  <div id="sRows"></div>
+  <div class="sum" id="sSum"></div>
+  <div class="sNote" id="sNote"></div>
+  <div class="row2"><button id="sReset">기본값</button><button id="sNo">취소</button><button class="go" id="sYes">저장</button></div>
+</dialog>
 <div id="toast"></div>
 
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
+const APP_VERSION = '1.3.0';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null;
 
@@ -200,6 +254,9 @@ function toast(msg, ms = 2600) {
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 const shortAlias = (a) => String(a || '').replace(/^에어컨\d*\s*\(?/, '').replace(/\)\s*$/, '') || a;
+// 방 카드 안에서는 방 이름이 겹치니 «위치»만 보여준다: '음파실 내측' → '내측', '치유장비실 1' → 그대로
+const posName = (a) => { const n = shortAlias(a), t = n.split(/\s+/); const rest = t.slice(1).join(' ');
+  return t.length > 1 && /(호|실|센터)\d*$/.test(t[0]) && !/^\d+$/.test(rest) ? rest : n; };
 
 async function api(path, opt = {}) {
   const r = await fetch(path, { ...opt, headers: { 'x-app-password': store.get(), 'Content-Type': 'application/json' } });
@@ -242,20 +299,19 @@ $('refresh').onclick = () => load();
 document.addEventListener('visibilitychange', () => { if (!document.hidden && store.get()) load(); });
 
 /* ── 평면도 ── 주간운영계획 안내 화면(display)의 평면 좌표를 옮겼다: [u0, u1, v0, v1, 종류, 방 키]. 가로 54m × 세로 15m */
-const PW = 1000, PH = 528;   // 세로는 보기 좋게 늘려서 그린다(약 1.9배)
+const PW = 1000, PH0 = 528, PH_OF = { '2F': 640 };   // 세로는 보기 좋게 늘려서 그린다(2층은 더 크게)
 const PLAN = {
-  '2F': [[0,.773,.43,.56,'corr',''],[0,.073,0,.43,'stairs',''],[.073,.271,0,.43,'core',''],
-    [.275,.522,0,.43,'room','r205'],[.525,.773,0,.43,'room','r204'],
-    [0,.239,.56,1,'room','r201'],[.241,.514,.56,1,'room','r202'],[.517,.773,.56,1,'room','r203'],[.776,1,0,1,'void','']],
+  '2F': [[0.0,1,0.43,0.56,'corr',''],[0.0,0.094,0,0.43,'stairs',''],[0.094,0.351,0,0.43,'core',''],[0.356,0.675,0,0.43,'room','r205'],[0.679,1,0,0.43,'room','r204'],[0.0,0.309,0.56,1,'room','r201'],[0.312,0.665,0.56,1,'room','r202'],[0.669,1,0.56,1,'room','r203']],
   '1F': [[.19,.766,.42,.57,'corr',''],[0,.073,0,.42,'stairs',''],[.075,.271,0,.42,'core',''],
     [.274,.763,0,.42,'room','hp2'],[0,.19,.42,1,'room','lobby1'],[.192,.763,.57,1,'room','hp1'],[.766,1,0,1,'room','haearim']],
   'B1': [[.247,.986,.43,.57,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],
     [.358,.469,0,.43,'room','dressF'],[.471,.582,0,.43,'room','dressM'],[.584,.694,0,.43,'room','supply'],[.695,1,0,.43,'room','media'],
     [0,.247,.43,1,'room','b1lobby'],[.249,.391,.57,1,'room','b101'],[.393,.774,.57,1,'room','b102'],[.776,1,.57,1,'room','media']],
 };
-const NOTE = { core: '엘리베이터·화장실', corr: '복도', void: '해아림홀 상부(오픈)', stairs: '' };
+const NOTE = { core: '엘리베이터·화장실', corr: '복도', stairs: '' };
 function planHtml(F) {
   const spec = PLAN[F.floor]; if (!spec) { $('plan').innerHTML = ''; return; }
+  const PH = PH_OF[F.floor] || PH0;
   const byKey = {}; F.rooms.forEach((r) => { byKey[r.key] = r; });
   const drawn = new Set(); let g = '';
   for (const [u0, u1, v0, v1, kind, key] of spec) {
@@ -306,17 +362,6 @@ function focusRoom(key) {
 }
 
 /* ── 그리기 ── */
-function devPill(d) {
-  const name = esc(shortAlias(d.alias));
-  if (d.unsupported) return `<span class="pill na"><i></i>${name} · 제어 불가</span>`;
-  if (!d.ok) return `<span class="pill err" title="${esc(d.error || '')}"><i></i>${name} · 읽기 실패</span>`;
-  if (d.power === 'ON') {
-    const m = MODE[d.mode] || d.mode || '';
-    const cls = d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
-    return `<span class="pill ${cls}"><i></i>${name} · ${esc(m)}${d.target != null ? ' ' + d.target + '°' : ''}</span>`;
-  }
-  return `<span class="pill"><i></i>${name} · 꺼짐</span>`;
-}
 function progHtml(s, scheduled) {
   if (!scheduled) return '<div class="prog"><span class="none">일정 연동 없음 (수동 조작)</span></div>';
   const parts = [];
@@ -326,6 +371,32 @@ function progHtml(s, scheduled) {
   return '<div class="prog">' + parts.join('') + '</div>';
 }
 const STATE_TXT = { active: '진행 중', soon: '곧 시작', done: '종료', gap: '대기', idle: '', none: '' };
+
+/* 에어컨 한 대 = 큰 버튼. 이름의 «위치»(내측·창측·스크린측…)로 구분한다. */
+function tileHtml(d) {
+  const pos = esc(posName(d.alias));
+  if (d.unsupported) return `<div class="tile na"><i></i><span class="tp">${pos}</span><span class="ts">제어 불가 (ThinQ 앱에서만)</span></div>`;
+  const cur = d.cur != null ? `<span class="tc">${d.cur}°<small>현재</small></span>` : '';
+  if (!d.ok) return `<button class="tile tbad" data-id="${esc(d.id)}"><i></i><span class="tp">${pos}</span><span class="ts">읽기 실패 · 눌러서 제어</span></button>`;
+  if (d.power === 'ON') {
+    const cls = d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
+    return `<button class="tile ${cls}" data-id="${esc(d.id)}"><i></i><span class="tp">${pos}</span><span class="ts">${esc(MODE[d.mode] || d.mode || '켜짐')} · 설정 ${d.target ?? '–'}°</span>${cur}</button>`;
+  }
+  return `<button class="tile" data-id="${esc(d.id)}"><i></i><span class="tp">${pos}</span><span class="ts">꺼짐</span>${cur}</button>`;
+}
+function sumActions(list) {
+  const m = {}; list.forEach((a) => { m[a] = (m[a] || 0) + 1; });
+  return Object.entries(m).map(([k, n]) => k + (n > 1 ? ' ' + n + '대' : '')).join(', ');
+}
+function autoBoxHtml(r) {
+  if (!r.scheduled || !r.settings) return '';
+  const st = r.settings, a = r.auto, stt = STATE_TXT[a.state];
+  const std = st.enabled
+    ? `기준: ${st.hot_on}° 이상 → 냉방 ${st.cool_target}° · ${st.cold_on}° 이하 → 난방 ${st.heat_target}° · 시작 ${st.pre}분 전부터`
+    : '이 방은 자동 제어를 껐습니다';
+  const line = !st.enabled ? '' : `지금 판단${stt ? ' (' + stt + ')' : ''}: <b>${esc(a.reason)}</b>${a.actions.length ? ' → ' + esc(sumActions(a.actions)) : ''}`;
+  return `<div class="autoBox"><div class="tx">${line}<span class="std">${std}${r.customSettings ? '<span class="tagc">이 방 설정</span>' : ''}</span></div><button class="setBtn">자동 설정</button></div>`;
+}
 
 function render() {
   const d = DATA;
@@ -354,26 +425,25 @@ function render() {
   $('rooms').innerHTML = F.rooms.map((r) => {
     const temps = r.devices.filter((x) => x.ok && x.cur != null).map((x) => x.cur);
     const avg = temps.length ? (temps.reduce((p, c) => p + c, 0) / temps.length) : null;
-    const st = STATE_TXT[r.auto.state];
-    const autoLine = r.scheduled
-      ? `<div class="autoLine">자동 판단${st ? ' (' + st + ')' : ''}: <b>${esc(r.auto.reason)}</b>${r.auto.actions.length ? ' → ' + esc(r.auto.actions.join(', ')) : ''}</div>` : '';
-    const body = r.noapi
-      ? `<div class="devs">${r.devices.map(devPill).join('')}</div><div class="noac">이 에어컨은 LG 서버가 상태 확인·제어를 지원하지 않아, 이 화면에서는 조작할 수 없습니다. ThinQ 앱이나 리모컨으로 조작해 주세요. (일정은 그대로 표시됩니다)</div>`
-      : r.devices.length
-      ? `<div class="devs">${r.devices.map(devPill).join('')}</div>${autoLine}
-         <div class="act" data-room="${r.key}">
-           <button class="cool" data-a="cool">냉방</button><button class="heat" data-a="heat">난방</button>
-           <button data-a="off">끄기</button><button data-a="temp">온도</button></div>`
-      : '<div class="noac">등록된 에어컨이 없습니다</div>';
+    let body;
+    if (r.noapi) {
+      body = `<div class="tiles">${r.devices.map((d) => tileHtml(d)).join('')}</div><div class="noac">이 에어컨은 LG 서버가 상태 확인·제어를 지원하지 않아, 이 화면에서는 조작할 수 없습니다. ThinQ 앱이나 리모컨으로 조작해 주세요. (일정은 그대로 표시됩니다)</div>`;
+    } else if (r.devices.length) {
+      body = `<div class="tiles">${r.devices.map((d) => tileHtml(d)).join('')}</div>
+        <div class="roomAct" data-room="${r.key}"><button class="cool" data-a="cool">방 전체 냉방</button><button class="heat" data-a="heat">방 전체 난방</button><button data-a="off">방 전체 끄기</button></div>${autoBoxHtml(r)}`;
+    } else body = '<div class="noac">등록된 에어컨이 없습니다</div>';
     return `<article class="room ${r.noapi ? 'na' : ''}" id="room-${r.key}"><div class="rHead"><div class="rName">${esc(r.name)}</div>
       <div class="rTemp">${avg == null ? '–' : (Math.round(avg * 10) / 10) + '°'}<small>방 온도</small></div></div>
       ${progHtml(r.schedule, r.scheduled)}${body}</article>`;
   }).join('');
-  document.querySelectorAll('.act').forEach((box) => {
-    const room = F.rooms.find((r) => r.key === box.dataset.room);
-    box.querySelectorAll('button').forEach((b) => b.onclick = () => onAct(room, b.dataset.a));
+  document.querySelectorAll('.room').forEach((el) => {
+    const room = F.rooms.find((r) => 'room-' + r.key === el.id); if (!room) return;
+    el.querySelectorAll('.roomAct button').forEach((b) => b.onclick = () => onAct(room, b.dataset.a));
+    el.querySelectorAll('.tile[data-id]').forEach((t) => t.onclick = () => openDev(room, room.devices.find((d) => d.id === t.dataset.id)));
+    const sb = el.querySelector('.setBtn'); if (sb) sb.onclick = () => openSettings(room);
   });
 
+  $('ver').textContent = `화면 v${APP_VERSION} · 서버 v${d.version || '?'}` + (d.version && d.version !== APP_VERSION ? ' — 버전이 다릅니다. 앱을 닫았다 다시 열어 보세요' : '');
   $('others').innerHTML = d.others.length
     ? `표에 없는 에어컨 ${d.others.length}대: ${d.others.map((x) => esc(shortAlias(x.alias))).join(', ')} <br>(서버 설정의 별칭 표에 추가하면 방에 나타납니다)` : '';
 }
@@ -394,25 +464,79 @@ async function confirmAct(title, text, ids, action, value) {
   await run(ids, action, value);
 }
 async function onAct(room, a) {
-  const ids = room.devices.map((x) => x.id);
+  const ids = room.devices.filter((x) => !x.unsupported).map((x) => x.id);
+  const st = room.settings || {};
   if (a === 'cool' || a === 'heat') {
-    const t = a === 'cool' ? 24 : 22, name = a === 'cool' ? '냉방' : '난방';
-    return confirmAct(`${room.short} ${name} 켜기`, `${ids.length}대를 ${name}(${t}°)으로 켭니다.`, ids, a, t);
+    const t = a === 'cool' ? (st.cool_target ?? 24) : (st.heat_target ?? 22), name = a === 'cool' ? '냉방' : '난방';
+    return confirmAct(`${room.short} 전체 ${name} 켜기`, `${ids.length}대를 ${name}(${t}°)으로 켭니다.`, ids, a, t);
   }
-  if (a === 'off') return confirmAct(`${room.short} 끄기`, `${ids.length}대를 끕니다.`, ids, 'off');
-  // 온도: 지금 설정 온도에서 시작해 +/− 로 바꾼다
-  const tg = room.devices.map((x) => x.target).filter((v) => v != null);
-  let v = Math.max(16, Math.min(30, tg.length ? Math.round(tg[0]) : 24));
-  const ok = await dialog(`${room.short} 설정 온도`, `${ids.length}대에 같은 온도를 적용합니다 (16~30°C).`,
-    '<div class="stepper"><button id="tm">−</button><output id="tv"></output><button id="tp">+</button></div>',
-    () => {
-      const show = () => { $('tv').textContent = v + '°'; };
-      show();
-      $('tm').onclick = () => { v = Math.max(16, v - 1); show(); };
-      $('tp').onclick = () => { v = Math.min(30, v + 1); show(); };
-    });
-  if (!ok) return;
-  await run(ids, 'temp', v);
+  return confirmAct(`${room.short} 전체 끄기`, `${ids.length}대를 끕니다.`, ids, 'off');
+}
+
+/* 에어컨 한 대 제어 창 */
+function openDev(room, d) {
+  if (!d) return;
+  const st = room.settings || {};
+  $('devT').textContent = `${room.short} · ${posName(d.alias)}`;
+  $('devS').textContent = !d.ok ? '상태를 읽지 못했습니다. 그래도 제어는 시도할 수 있어요.' : d.power === 'ON'
+    ? `${MODE[d.mode] || d.mode || '켜짐'} 중 · 설정 ${d.target ?? '–'}° · 현재 ${d.cur ?? '–'}°` : `꺼짐${d.cur != null ? ' · 현재 ' + d.cur + '°' : ''}`;
+  const clamp = (n) => Math.max(16, Math.min(30, n));
+  let v = clamp(Math.round(d.target ?? st.cool_target ?? 24)), touched = false;
+  const show = () => { $('dvV').textContent = v + '°'; };
+  show();
+  $('dvM').onclick = () => { v = clamp(v - 1); touched = true; show(); };
+  $('dvP').onclick = () => { v = clamp(v + 1); touched = true; show(); };
+  const dlg = $('dev');
+  dlg.querySelectorAll('.mbtns button').forEach((b) => b.onclick = () => {
+    const a = b.dataset.a; dlg.close();
+    const val = a === 'cool' ? (touched ? v : (st.cool_target ?? v)) : a === 'heat' ? (touched ? v : (st.heat_target ?? v)) : v;
+    run([d.id], a, a === 'off' ? undefined : val);
+  });
+  $('dvX').onclick = () => dlg.close();
+  dlg.showModal();
+}
+
+/* 방별 자동 설정 창 */
+const SROWS = [
+  ['pre', '시작 전 확인', '프로그램 시작 몇 분 전부터 보는지', '분', 5, 0, 120],
+  ['hot_on', '냉방 시작 온도', '방 온도가 이 이상이면 냉방', '°', 1, 20, 35],
+  ['cool_target', '냉방 설정 온도', '이 온도로 켜고, 방이 여기까지 내려오면 끔', '°', 1, 16, 30],
+  ['cold_on', '난방 시작 온도', '방 온도가 이 이하면 난방', '°', 1, 5, 25],
+  ['heat_target', '난방 설정 온도', '이 온도로 켜고, 방이 여기까지 오르면 끔', '°', 1, 16, 30],
+];
+function openSettings(room) {
+  const canSave = !!(DATA.auto && DATA.auto.canSave);
+  const defs = (DATA.auto && DATA.auto.defaults) || { enabled: true, pre: 30, hot_on: 26, cool_target: 24, cold_on: 18, heat_target: 22 };
+  const val = { ...room.settings };
+  $('setT').textContent = `${room.short} 자동 설정`;
+  $('sRows').innerHTML = SROWS.map(([k, l, h, u]) => `<div class="srow"><div class="sl">${l}<small>${h}</small></div><div class="sv"><button data-k="${k}" data-d="-1">−</button><output id="o-${k}"></output><button data-k="${k}" data-d="1">+</button></div></div>`).join('');
+  const paint = () => {
+    $('sEn').checked = val.enabled;
+    SROWS.forEach(([k,, , u]) => { $('o-' + k).textContent = val[k] + u; });
+    $('sSum').innerHTML = val.enabled
+      ? `프로그램 시작 <b>${val.pre}분 전</b>부터 끝날 때까지 방 온도를 봅니다.<br>방 온도 <b>${val.hot_on}° 이상</b>이면 냉방 <b>${val.cool_target}°</b>로 켜고, ${val.cool_target}°까지 내려오면 끕니다.<br>방 온도 <b>${val.cold_on}° 이하</b>이면 난방 <b>${val.heat_target}°</b>로 켜고, ${val.heat_target}°까지 오르면 끕니다.<br>모든 일정이 끝나고 10분 뒤에 꺼집니다.`
+      : '이 방은 자동으로 켜거나 끄지 않습니다. 직접 눌러서만 제어됩니다.';
+    $('sRows').style.opacity = val.enabled ? 1 : .45;
+  };
+  $('sEn').onchange = () => { val.enabled = $('sEn').checked; paint(); };
+  $('sRows').querySelectorAll('button').forEach((b) => b.onclick = () => {
+    const row = SROWS.find((r) => r[0] === b.dataset.k);
+    val[row[0]] = Math.max(row[5], Math.min(row[6], val[row[0]] + row[4] * Number(b.dataset.d))); paint();
+  });
+  $('sReset').onclick = () => { Object.assign(val, defs); paint(); };
+  $('sNote').textContent = canSave ? '' : '서버에 KV(STATE)가 연결되지 않아 저장할 수 없습니다. README의 «KV 연결»을 먼저 해 주세요.';
+  $('sYes').disabled = !canSave; $('sYes').style.opacity = canSave ? 1 : .4;
+  const dlg = $('set');
+  $('sNo').onclick = () => dlg.close();
+  $('sYes').onclick = async () => {
+    try {
+      const same = SROWS.every(([k]) => val[k] === defs[k]) && val.enabled === defs.enabled;
+      const r = await api('/api/settings', { method: 'POST', body: JSON.stringify(same ? { room: room.key, reset: true } : { room: room.key, settings: val }) });
+      room.settings = r.settings; room.customSettings = r.customSettings;
+      dlg.close(); toast('저장했습니다'); render(); setTimeout(() => load(), 800);
+    } catch (e) { toast(e.message, 5200); }
+  };
+  paint(); dlg.showModal();
 }
 
 async function run(ids, action, value) {

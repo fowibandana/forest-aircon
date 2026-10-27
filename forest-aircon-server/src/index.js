@@ -3,6 +3,8 @@ import { PLACES, FLOOR_ORDER, placeOfDevice } from './rooms.js';
 import { fetchSchedule, itemsByRoom, summarizeRoom } from './schedule.js';
 import { Thinq } from './thinq.js';
 import { decideRoom } from './auto.js';
+import { VERSION } from './version.js';
+import { cleanSettings, loadSettings, settingsOf, cfgOf, DEFAULTS } from './settings.js';
 
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
@@ -45,14 +47,21 @@ export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, know
   return { thinq, sched, devices: states };
 }
 
-function evaluate(sched, devices, cfg = CONFIG) {
+function evaluate(sched, devices, smap = {}) {
   const by = itemsByRoom(sched.items);
-  const out = {};
+  const out = {}, cfgs = {};
   for (const key of Object.keys(PLACES)) {
     const devs = devices.filter((d) => d.room === key && d.ok);
-    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg });
+    const { settings, custom } = settingsOf(smap, key);
+    cfgs[key] = { settings, custom };
+    if (!settings.enabled && (by[key] || []).length) {
+      const temps = devs.map((d) => d.cur).filter((v) => typeof v === 'number');
+      out[key] = { state: 'off', reason: '이 방은 자동 제어를 꺼 두었습니다', temp: temps.length ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10 : null, actions: [] };
+      continue;
+    }
+    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: cfgOf(settings) });
   }
-  return { by, decisions: out };
+  return { by, decisions: out, cfgs };
 }
 
 const pub = (d) => ({ id: d.id, alias: d.alias, unsupported: !!(d.room && PLACES[d.room] && PLACES[d.room].noapi), ok: !!d.ok, error: d.error || null, power: d.power || null, mode: d.mode || null, cur: d.cur ?? null, target: d.target ?? null });
@@ -63,12 +72,12 @@ async function isPaused(env) {
 }
 
 async function statusResponse(env) {
-  const snap = await snapshot(env);
-  const { by, decisions } = evaluate(snap.sched, snap.devices);
+  const [snap, smap] = await Promise.all([snapshot(env), loadSettings(env)]);
+  const { by, decisions, cfgs } = evaluate(snap.sched, snap.devices, smap);
   const floors = FLOOR_ORDER.map((f) => ({
     floor: f,
     rooms: Object.entries(PLACES).filter(([, r]) => r.floor === f).map(([key, r]) => ({
-      key, name: r.name, short: r.short, scheduled: r.sched, noapi: !!r.noapi,
+      key, name: r.name, short: r.short, scheduled: r.sched, noapi: !!r.noapi, settings: cfgs[key].settings, customSettings: cfgs[key].custom,
       schedule: summarizeRoom(by[key] || [], snap.sched.items, snap.sched.nowMin),
       devices: snap.devices.filter((d) => d.room === key).map(pub),
       temp: decisions[key].temp,
@@ -76,11 +85,12 @@ async function statusResponse(env) {
     })),
   }));
   return {
+    version: VERSION,
     date: snap.sched.date,
     nowMin: snap.sched.nowMin,
     floors,
     others: snap.devices.filter((d) => !d.room).map(pub),   // 어느 방인지 모르는 에어컨(표에 추가 필요)
-    auto: { mode: env.AUTO_MODE === 'live' ? 'live' : 'dry', paused: await isPaused(env), canPause: !!env.STATE },
+    auto: { mode: env.AUTO_MODE === 'live' ? 'live' : 'dry', paused: await isPaused(env), canPause: !!env.STATE, canSave: !!env.STATE, defaults: DEFAULTS },
   };
 }
 
@@ -129,7 +139,7 @@ export async function runAuto(env, fetchFn = fetch, now = new Date()) {
   const sched = await fetchSchedule(fetchFn);
   const by = itemsByRoom(sched.items);
   const snap = await snapshot(env, fetchFn, (k) => (by[k] || []).length > 0, sched);
-  const { decisions } = evaluate(snap.sched, snap.devices);
+  const { decisions } = evaluate(snap.sched, snap.devices, await loadSettings(env));
   const live = env.AUTO_MODE === 'live';
   const log = [];
   for (const [key, d] of Object.entries(decisions)) {
@@ -167,6 +177,22 @@ export default {
         return json({ ok: true, devices: list.map((d) => ({ ...d, room: deviceRoom(d) || null })) });
       }
       if (url.pathname === '/api/control' && request.method === 'POST') return await controlResponse(env, await request.json());
+      if (url.pathname === '/api/settings' && request.method === 'POST') {
+        if (!env.STATE) return json({ ok: false, error: '설정을 저장하려면 서버에 KV(STATE)를 연결해야 합니다(README 참고)' }, 400);
+        const b = await request.json();
+        const key = String(b.room || '');
+        if (!PLACES[key] || !PLACES[key].sched) return json({ ok: false, error: '자동 제어 설정이 없는 방입니다' }, 400);
+        const map = await loadSettings(env);
+        if (b.reset) delete map[key];
+        else {
+          const c = cleanSettings(b.settings);
+          if (c.error) return json({ ok: false, error: c.error }, 400);
+          map[key] = c.value;
+        }
+        await env.STATE.put('settings', JSON.stringify(map));
+        const r = settingsOf(map, key);
+        return json({ ok: true, room: key, settings: r.settings, customSettings: r.custom });
+      }
       if (url.pathname === '/api/pause' && request.method === 'POST') {
         if (!env.STATE) return json({ ok: false, error: 'KV(STATE)가 연결되지 않았습니다' }, 400);
         const b = await request.json();

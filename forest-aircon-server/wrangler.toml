@@ -18,7 +18,7 @@ enabled = true   # 자동 제어가 무엇을 했는지 Cloudflare 화면의 «�
 # "dry" = 시험 모드(실제로 제어하지 않고 로그만 남김), "live" = 실제 자동 제어.
 AUTO_MODE = "dry"
 
-# 자동 제어 일시중지 스위치를 폰에서 쓰려면 KV를 만들어 STATE 이름으로 연결하세요(README 참고).
+# 방별 자동 설정 저장·일시중지 스위치를 쓰려면 KV를 만들어 STATE 이름으로 연결하세요(README «KV 연결»).
 # [[kv_namespaces]]
 # binding = "STATE"
 # id = "여기에_KV_id"

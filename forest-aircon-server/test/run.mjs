@@ -203,4 +203,61 @@ await t('치유장비실 에어컨은 건강증진실 1 로, 탈의실 여/남·
   });
 });
 
+const makeKV = () => { const m = {}; return { m, get: async (k, type) => (k in m ? (type === 'json' ? JSON.parse(m[k]) : m[k]) : null), put: async (k, v) => { m[k] = v; } }; };
+const post = (path, b, env) => worker.fetch(new Request('https://x' + path, { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify(b) }), env);
+const controls = (w) => w.calls.filter((c) => c.method === 'POST' && /control$/.test(c.url));
+console.log('방별 설정');
+await t('방별 설정 저장 → 상태에 반영, 그 방만 기준이 바뀐다', async () => {
+  const KV = makeKV(); const env = { ...ENV, STATE: KV };
+  const w = makeWorld({ nowMin: 9 * 60 + 40, temps: { r203: 30.5, r204: 30.5 }, items: [item('203호', '10:00', '11:00'), item('204호', '10:00', '11:00')] });
+  await withWorld(w, async () => {
+    const bad = await post('/api/settings', { room: 'r203', settings: { hot_on: 22, cool_target: 24 } }, env);
+    assert.equal(bad.status, 400);
+    const ok = await (await post('/api/settings', { room: 'r203', settings: { hot_on: 32, cool_target: 25, cold_on: 17, heat_target: 21, pre: 20 } }, env)).json();
+    assert.equal(ok.ok, true); assert.equal(ok.settings.hot_on, 32);
+    const r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env)).json();
+    const f2 = r.floors.find((f) => f.floor === '2F').rooms;
+    const r203 = f2.find((x) => x.key === 'r203'), r204 = f2.find((x) => x.key === 'r204');
+    assert.equal(r203.settings.hot_on, 32); assert.equal(r203.customSettings, true);
+    assert.equal(r204.settings.hot_on, 26); assert.equal(r204.customSettings, false);
+    assert.equal(r.auto.canSave, true);
+    assert.equal(r203.auto.actions.length, 0);        // 30.5° < 32° → 제어 안 함
+    assert.ok(r204.auto.actions.length > 0);           // 기본 기준(26°)이면 냉방
+    await runAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40) - 9 * 3600e3 + 9 * 3600e3));
+  });
+  const calls = controls(w);
+  assert.ok(calls.length > 0);
+  const ids203 = w.devices.filter((d) => /203호/.test(d.alias)).map((d) => d.deviceId);
+  assert.ok(calls.every((c) => !ids203.some((id) => c.url.includes(id))), '203호는 건드리지 않아야 함');
+});
+await t('방별 자동 끄기·기본값 복원, KV 없으면 저장 거절', async () => {
+  const KV = makeKV(); const env = { ...ENV, STATE: KV };
+  const w = makeWorld({ nowMin: 9 * 60 + 40, temps: { r203: 30.5 }, items: [item('203호', '10:00', '11:00')] });
+  await withWorld(w, async () => {
+    await post('/api/settings', { room: 'r203', settings: { enabled: false } }, env);
+    let r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env)).json();
+    let x = r.floors.find((f) => f.floor === '2F').rooms.find((y) => y.key === 'r203');
+    assert.equal(x.auto.state, 'off'); assert.equal(x.auto.actions.length, 0);
+    await runAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40)));
+    await post('/api/settings', { room: 'r203', reset: true }, env);
+    r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env)).json();
+    x = r.floors.find((f) => f.floor === '2F').rooms.find((y) => y.key === 'r203');
+    assert.equal(x.settings.enabled, true); assert.equal(x.customSettings, false);
+    const nokv = await post('/api/settings', { room: 'r203', settings: {} }, ENV);
+    assert.equal(nokv.status, 400);
+    assert.equal((await post('/api/settings', { room: 'b1lobby', settings: {} }, env)).status, 400);   // 일정 없는 방
+  });
+  assert.equal(controls(w).length, 0);
+});
+
+await t('버전이 상태 응답과 package.json 에 같이 나온다', async () => {
+  const { VERSION } = await import('../src/version.js');
+  const pk = JSON.parse((await import('node:fs')).readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  const html = (await import('node:fs')).readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.equal(pk.version, VERSION); assert.ok(html.includes(`APP_VERSION = '${VERSION}'`));
+  const w = makeWorld({});
+  const r = await withWorld(w, async () => (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), ENV)).json());
+  assert.equal(r.version, VERSION);
+});
+
 console.log(process.exitCode ? '\n실패 있음' : `\n전부 통과 (${pass}개)`);

@@ -14,8 +14,16 @@
 4. 주소(`https://forest-aircon.○○○.workers.dev`)를 폰에서 열고 비밀번호 입력 → 홈 화면에 추가
 
 ## 자동 제어 켜기
-처음에는 `wrangler.toml`의 `AUTO_MODE = "dry"`(시험 모드)입니다. 실제로 제어하지 않고, 하려던 일을 화면의 «자동 판단»과 Cloudflare 로그에만 남깁니다.
+처음에는 `wrangler.toml`의 `AUTO_MODE = "dry"`(시험 모드)입니다. 실제로 제어하지 않고, 하려던 일을 화면의 «지금 판단»과 Cloudflare 로그에만 남깁니다.
 며칠 지켜본 뒤 `"live"`로 바꾸면(GitHub에서 파일 수정 → 자동 재배포) 실제로 제어합니다.
+
+## KV 연결 (방별 설정 저장 + 자동 제어 일시중지)
+
+방마다 바꾼 자동 제어 기준과 «일시중지» 스위치는 Cloudflare KV에 저장됩니다. 연결하지 않으면 화면의 «자동 설정»에서 저장이 안 되고 기본값(src/config.js)만 쓰입니다.
+
+1. Cloudflare 왼쪽 메뉴 «Storage & Databases → KV» → «Create» → 이름 `forest-aircon-state`
+2. 만들어진 KV의 **ID**를 복사
+3. GitHub의 `forest-aircon-server/wrangler.toml` 맨 아래 세 줄의 `#`을 지우고 `id`에 붙여넣기 → 저장하면 자동 재배포
 
 ## 기준값 (src/config.js — 제가 임의로 정한 기본값)
 | 항목 | 기본값 |
