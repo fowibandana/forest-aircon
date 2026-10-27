@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1f6f54">
+<title>산림치유센터 에어컨</title>
+<style>
+:root{
+  --bg:#f4f2ec; --card:#ffffff; --ink:#1d2b25; --mute:#6a7a72; --line:#e3e0d6;
+  --brand:#1f6f54; --brand-ink:#ffffff; --cool:#2b6fd6; --heat:#d9622b; --off:#8a948f;
+  --ok:#1f8a5b; --warn:#b7791f; --bad:#c0392b; --chip:#eef3ef;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
+         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; }
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--ink);font-family:'Noto Sans KR','Malgun Gothic',system-ui,sans-serif}
+body{padding:0 16px calc(24px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.hide{display:none!important}
+
+/* 로그인 */
+#login{padding-top:18vh}
+#login h1{font-size:22px;font-weight:700;margin-bottom:6px}
+#login p{color:var(--mute);font-size:14px;margin-bottom:18px}
+#login input{width:100%;font:inherit;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);margin-bottom:10px}
+.btn-main{width:100%;padding:14px;border-radius:12px;background:var(--brand);color:var(--brand-ink);font-weight:700}
+#loginErr{color:var(--bad);font-size:13px;min-height:18px;margin-top:8px}
+
+/* 머리 */
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env(safe-area-inset-top)) 0 8px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.top h1{font-size:19px;font-weight:700;letter-spacing:-.01em}
+.sub{font-size:12.5px;color:var(--mute);margin-top:2px}
+.ic{width:38px;height:38px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:17px}
+.ic.spin{animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.autoBar{display:flex;align-items:center;gap:8px;margin-top:10px;padding:9px 12px;border-radius:12px;background:var(--chip);font-size:13px}
+.autoBar b{font-weight:700}
+.autoBar .sp{flex:1}
+.autoBar button{padding:5px 11px;border-radius:999px;background:var(--card);border:1px solid var(--line);font-size:12.5px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none}
+.dot.live{background:var(--ok)} .dot.pause{background:var(--off)}
+
+/* 층 탭 */
+.tabs{display:flex;gap:8px;margin-top:12px}
+.tab{flex:1;padding:10px 6px;border-radius:12px;background:var(--card);border:1px solid var(--line);text-align:center;font-weight:700;font-size:15px;position:relative}
+.tab small{display:block;font-weight:500;font-size:11.5px;color:var(--mute);margin-top:1px}
+.tab.on{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.tab.on small{color:inherit;opacity:.85}
+
+/* 층 요약 */
+.floorBar{display:flex;align-items:center;justify-content:space-between;margin:14px 2px 8px;font-size:13.5px;color:var(--mute)}
+.floorBar button{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;color:var(--ink)}
+
+/* 방 카드 */
+.room{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.rHead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.rName{font-size:16.5px;font-weight:700;letter-spacing:-.01em}
+.rTemp{text-align:right;font-variant-numeric:tabular-nums;font-size:26px;font-weight:600;line-height:1}
+.rTemp small{display:block;font-size:11px;font-weight:500;color:var(--mute);margin-top:3px}
+.prog{margin-top:9px;font-size:13.5px;line-height:1.45}
+.prog .now{color:var(--ok);font-weight:700}
+.prog .nx{color:var(--mute)}
+.prog .none{color:var(--mute)}
+.devs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;background:var(--chip);font-size:12.5px}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--off);display:inline-block}
+.pill.cool i{background:var(--cool)} .pill.heat i{background:var(--heat)} .pill.on i{background:var(--ok)}
+.pill.err{color:var(--bad)}
+.autoLine{margin-top:9px;font-size:12.5px;color:var(--mute)}
+.autoLine b{color:var(--ink);font-weight:600}
+.act{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.act button{padding:11px 0;border-radius:12px;border:1px solid var(--line);font-weight:600;font-size:14px;background:var(--card)}
+.act .cool{color:var(--cool)} .act .heat{color:var(--heat)}
+.act button:active{background:var(--chip)}
+.act button:disabled{opacity:.4}
+.noac{margin-top:10px;font-size:13px;color:var(--mute)}
+
+.others{margin-top:6px;font-size:13px;color:var(--mute);line-height:1.5}
+.err{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:12px;padding:12px;font-size:13.5px;margin:12px 0}
+
+/* 시트·토스트 */
+dialog{border:0;border-radius:18px;padding:18px;background:var(--card);color:var(--ink);width:min(92vw,360px);margin:auto}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h3{font-size:17px;margin-bottom:6px}
+dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
+.row2{display:flex;gap:8px}
+.row2 button{flex:1;padding:12px;border-radius:12px;border:1px solid var(--line);font-weight:600}
+.row2 .go{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.stepper{display:flex;align-items:center;justify-content:center;gap:18px;margin:6px 0 16px}
+.stepper button{width:48px;height:48px;border-radius:50%;border:1px solid var(--line);font-size:24px}
+.stepper output{font-size:38px;font-weight:600;min-width:90px;text-align:center;font-variant-numeric:tabular-nums}
+#toast{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#222;color:#fff;padding:11px 16px;border-radius:999px;font-size:13.5px;max-width:90vw;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;text-align:center}
+#toast.show{opacity:.96}
+</style>
+</head>
+<body>
+
+<section id="login" class="hide">
+  <h1>산림치유센터 에어컨</h1>
+  <p>관리자 비밀번호를 입력하세요.</p>
+  <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+  <button class="btn-main" id="loginBtn">들어가기</button>
+  <div id="loginErr"></div>
+</section>
+
+<main id="app" class="hide">
+  <header>
+    <div class="top">
+      <div>
+        <h1>산림치유센터 에어컨</h1>
+        <div class="sub" id="sub">불러오는 중…</div>
+      </div>
+      <button class="ic" id="refresh" aria-label="새로고침">⟳</button>
+    </div>
+    <div class="autoBar" id="autoBar"></div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <div id="err"></div>
+  <div id="floorBar" class="floorBar"></div>
+  <div id="rooms"></div>
+  <div id="others" class="others"></div>
+</main>
+
+<dialog id="dlg">
+  <h3 id="dT"></h3>
+  <p id="dP"></p>
+  <div id="dBody"></div>
+  <div class="row2"><button id="dNo">취소</button><button class="go" id="dYes">확인</button></div>
+</dialog>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
+let DATA = null, floor = 'B1', busy = false, timer = null;
+
+const store = {
+  get() { try { return localStorage.getItem('pw') || ''; } catch { return ''; } },
+  set(v) { try { localStorage.setItem('pw', v); } catch {} },
+  clear() { try { localStorage.removeItem('pw'); } catch {} },
+};
+
+function toast(msg, ms = 2600) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), ms);
+}
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const hhmm = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+const shortAlias = (a) => String(a || '').replace(/^에어컨\d*\s*\(?/, '').replace(/\)\s*$/, '') || a;
+
+async function api(path, opt = {}) {
+  const r = await fetch(path, { ...opt, headers: { 'x-app-password': store.get(), 'Content-Type': 'application/json' } });
+  let j = null; try { j = await r.json(); } catch {}
+  if (r.status === 401) { const e = new Error('비밀번호가 맞지 않습니다'); e.auth = true; throw e; }
+  if (!j) throw new Error('서버 응답을 읽지 못했습니다 (HTTP ' + r.status + ')');
+  if (j.ok === false && !j.results) throw new Error(j.error || '요청 실패');
+  return j;
+}
+
+/* ── 로그인 ── */
+function showLogin(msg) {
+  $('app').classList.add('hide'); $('login').classList.remove('hide');
+  $('loginErr').textContent = msg || ''; clearInterval(timer);
+}
+$('loginBtn').onclick = async () => {
+  store.set($('pw').value.trim());
+  $('loginErr').textContent = '확인 중…';
+  try { await load(true); } catch (e) { if (e.auth) { store.clear(); showLogin(e.message); } else { showLogin(e.message); } }
+};
+$('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginBtn').click(); });
+
+/* ── 불러오기 ── */
+async function load(first) {
+  if (busy) return; busy = true; $('refresh').classList.add('spin');
+  try {
+    DATA = await api('/api/status');
+    $('login').classList.add('hide'); $('app').classList.remove('hide');
+    $('err').innerHTML = '';
+    render();
+    if (first) { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 60000); }
+  } catch (e) {
+    if (e.auth) throw e;
+    if (!DATA) { if (first) throw e; }
+    $('err').innerHTML = `<div class="err">불러오지 못했습니다: ${esc(e.message)}</div>`;
+    if (first) { $('login').classList.add('hide'); $('app').classList.remove('hide'); }
+  } finally { busy = false; $('refresh').classList.remove('spin'); }
+}
+$('refresh').onclick = () => load();
+document.addEventListener('visibilitychange', () => { if (!document.hidden && store.get()) load(); });
+
+/* ── 그리기 ── */
+function devPill(d) {
+  const name = esc(shortAlias(d.alias));
+  if (!d.ok) return `<span class="pill err" title="${esc(d.error || '')}"><i></i>${name} · 읽기 실패</span>`;
+  if (d.power === 'ON') {
+    const m = MODE[d.mode] || d.mode || '';
+    const cls = d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
+    return `<span class="pill ${cls}"><i></i>${name} · ${esc(m)}${d.target != null ? ' ' + d.target + '°' : ''}</span>`;
+  }
+  return `<span class="pill"><i></i>${name} · 꺼짐</span>`;
+}
+function progHtml(s, scheduled) {
+  if (!scheduled) return '<div class="prog"><span class="none">일정 연동 없음 (수동 조작)</span></div>';
+  const parts = [];
+  for (const c of s.current) parts.push(`<div><span class="now">● 진행 중</span> ${esc(c.start)}${c.end ? '–' + esc(c.end) : '–'} · ${esc(c.group)}${c.program ? ' · ' + esc(c.program) : ''}</div>`);
+  if (s.next) parts.push(`<div class="nx">다음 ${esc(s.next.start)} · ${esc(s.next.group)}${s.next.program ? ' · ' + esc(s.next.program) : ''}</div>`);
+  if (!parts.length) parts.push(`<div class="none">${s.total ? '오늘 일정이 모두 끝났습니다' : '오늘 일정 없음'}</div>`);
+  return '<div class="prog">' + parts.join('') + '</div>';
+}
+const STATE_TXT = { active: '진행 중', soon: '곧 시작', done: '종료', gap: '대기', idle: '', none: '' };
+
+function render() {
+  const d = DATA;
+  $('sub').textContent = `${d.date} ${hhmm(d.nowMin)} 기준`;
+  const a = d.auto;
+  const dotCls = a.paused ? 'pause' : a.mode === 'live' ? 'live' : '';
+  const label = a.paused ? '자동 제어 일시중지' : a.mode === 'live' ? '자동 제어 켜짐' : '자동 제어 시험 모드 (실제 제어 안 함)';
+  $('autoBar').innerHTML = `<span class="dot ${dotCls}"></span><b>${label}</b><span class="sp"></span>` +
+    (a.canPause ? `<button id="pauseBtn">${a.paused ? '다시 켜기' : '일시중지'}</button>` : '');
+  const pb = $('pauseBtn'); if (pb) pb.onclick = () => togglePause(!a.paused);
+
+  $('tabs').innerHTML = d.floors.map((f) => {
+    const devs = f.rooms.flatMap((r) => r.devices);
+    const on = devs.filter((x) => x.power === 'ON').length;
+    return `<button class="tab ${f.floor === floor ? 'on' : ''}" data-f="${f.floor}">${f.floor}<small>${on ? '켜짐 ' + on : '모두 꺼짐'}</small></button>`;
+  }).join('');
+  document.querySelectorAll('.tab').forEach((t) => t.onclick = () => { floor = t.dataset.f; render(); window.scrollTo({ top: 0 }); });
+
+  const F = d.floors.find((f) => f.floor === floor) || d.floors[0];
+  const ids = F.rooms.flatMap((r) => r.devices.map((x) => x.id));
+  const onIds = F.rooms.flatMap((r) => r.devices.filter((x) => x.power === 'ON').map((x) => x.id));
+  $('floorBar').innerHTML = `<span>에어컨 ${ids.length}대 · 켜짐 ${onIds.length}대</span><button id="floorOff" ${onIds.length ? '' : 'disabled'}>${F.floor} 전체 끄기</button>`;
+  $('floorOff').onclick = () => confirmAct(`${F.floor} 전체 끄기`, `켜져 있는 에어컨 ${onIds.length}대를 끕니다.`, onIds, 'off');
+
+  $('rooms').innerHTML = F.rooms.map((r) => {
+    const temps = r.devices.filter((x) => x.ok && x.cur != null).map((x) => x.cur);
+    const avg = temps.length ? (temps.reduce((p, c) => p + c, 0) / temps.length) : null;
+    const st = STATE_TXT[r.auto.state];
+    const autoLine = r.scheduled
+      ? `<div class="autoLine">자동 판단${st ? ' (' + st + ')' : ''}: <b>${esc(r.auto.reason)}</b>${r.auto.actions.length ? ' → ' + esc(r.auto.actions.join(', ')) : ''}</div>` : '';
+    const body = r.devices.length
+      ? `<div class="devs">${r.devices.map(devPill).join('')}</div>${autoLine}
+         <div class="act" data-room="${r.key}">
+           <button class="cool" data-a="cool">냉방</button><button class="heat" data-a="heat">난방</button>
+           <button data-a="off">끄기</button><button data-a="temp">온도</button></div>`
+      : '<div class="noac">등록된 에어컨이 없습니다</div>';
+    return `<article class="room"><div class="rHead"><div class="rName">${esc(r.name)}</div>
+      <div class="rTemp">${avg == null ? '–' : (Math.round(avg * 10) / 10) + '°'}<small>방 온도</small></div></div>
+      ${progHtml(r.schedule, r.scheduled)}${body}</article>`;
+  }).join('');
+  document.querySelectorAll('.act').forEach((box) => {
+    const room = F.rooms.find((r) => r.key === box.dataset.room);
+    box.querySelectorAll('button').forEach((b) => b.onclick = () => onAct(room, b.dataset.a));
+  });
+
+  $('others').innerHTML = d.others.length
+    ? `표에 없는 에어컨 ${d.others.length}대: ${d.others.map((x) => esc(shortAlias(x.alias))).join(', ')} <br>(서버 설정의 별칭 표에 추가하면 방에 나타납니다)` : '';
+}
+
+/* ── 동작 ── */
+function dialog(title, text, bodyHtml, onOpen) {
+  return new Promise((res) => {
+    $('dT').textContent = title; $('dP').textContent = text || ''; $('dBody').innerHTML = bodyHtml || '';
+    const dlg = $('dlg'); const done = (v) => { if (dlg.open) dlg.close(); res(v); };
+    $('dYes').onclick = () => done(true); $('dNo').onclick = () => done(false); dlg.oncancel = () => res(false);
+    if (onOpen) onOpen();
+    dlg.showModal();
+  });
+}
+async function confirmAct(title, text, ids, action, value) {
+  if (!ids.length) { toast('대상 에어컨이 없습니다'); return; }
+  if (!(await dialog(title, text))) return;
+  await run(ids, action, value);
+}
+async function onAct(room, a) {
+  const ids = room.devices.map((x) => x.id);
+  if (a === 'cool' || a === 'heat') {
+    const t = a === 'cool' ? 24 : 22, name = a === 'cool' ? '냉방' : '난방';
+    return confirmAct(`${room.short} ${name} 켜기`, `${ids.length}대를 ${name}(${t}°)으로 켭니다.`, ids, a, t);
+  }
+  if (a === 'off') return confirmAct(`${room.short} 끄기`, `${ids.length}대를 끕니다.`, ids, 'off');
+  // 온도: 지금 설정 온도에서 시작해 +/− 로 바꾼다
+  const tg = room.devices.map((x) => x.target).filter((v) => v != null);
+  let v = Math.max(16, Math.min(30, tg.length ? Math.round(tg[0]) : 24));
+  const ok = await dialog(`${room.short} 설정 온도`, `${ids.length}대에 같은 온도를 적용합니다 (16~30°C).`,
+    '<div class="stepper"><button id="tm">−</button><output id="tv"></output><button id="tp">+</button></div>',
+    () => {
+      const show = () => { $('tv').textContent = v + '°'; };
+      show();
+      $('tm').onclick = () => { v = Math.max(16, v - 1); show(); };
+      $('tp').onclick = () => { v = Math.min(30, v + 1); show(); };
+    });
+  if (!ok) return;
+  await run(ids, 'temp', v);
+}
+
+async function run(ids, action, value) {
+  toast('보내는 중…', 8000);
+  try {
+    const r = await api('/api/control', { method: 'POST', body: JSON.stringify({ deviceIds: ids, action, value }) });
+    const bad = (r.results || []).filter((x) => !x.ok);
+    if (bad.length) toast(`${r.results.length - bad.length}대 완료, ${bad.length}대 실패: ${bad[0].error}`, 5200);
+    else toast(`${r.results.length}대 완료`);
+  } catch (e) { toast(e.message, 5200); }
+  setTimeout(() => load(), 3500);
+}
+async function togglePause(p) {
+  try { await api('/api/pause', { method: 'POST', body: JSON.stringify({ paused: p }) }); toast(p ? '자동 제어를 멈췄습니다' : '자동 제어를 켰습니다'); load(); }
+  catch (e) { toast(e.message, 4000); }
+}
+
+/* ── 시작 ── */
+(async () => {
+  if (!store.get()) return showLogin();
+  try { await load(true); } catch (e) { showLogin(e.auth ? e.message : e.message); }
+})();
+</script>
+</body>
+</html>

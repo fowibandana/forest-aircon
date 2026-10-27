@@ -1,0 +1,24 @@
+name = "forest-aircon"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+# 폰 화면(public 폴더)을 같이 올린다. /api/* 는 아래 서버 코드가 처리한다.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# 5분마다 자동 제어를 한 번 돌린다(UTC 기준 표기 — 5분 간격이라 시차와 상관없다).
+[triggers]
+crons = ["*/5 * * * *"]
+
+[observability]
+enabled = true   # 자동 제어가 무엇을 했는지 Cloudflare 화면의 «로그»에서 볼 수 있다
+
+[vars]
+# "dry" = 시험 모드(실제로 제어하지 않고 로그만 남김), "live" = 실제 자동 제어.
+AUTO_MODE = "dry"
+
+# 자동 제어 일시중지 스위치를 폰에서 쓰려면 KV를 만들어 STATE 이름으로 연결하세요(README 참고).
+# [[kv_namespaces]]
+# binding = "STATE"
+# id = "여기에_KV_id"
