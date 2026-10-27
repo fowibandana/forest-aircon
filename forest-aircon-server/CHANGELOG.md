@@ -2,6 +2,9 @@
 
 버전은 `src/version.js`, `package.json`, `public/index.html`(APP_VERSION) 세 곳에서 같이 올립니다. 화면 맨 아래에 «화면 vX · 서버 vY»로 표시됩니다.
 
+## 1.3.2 — 2026-10-28
+- 배포 도구(wrangler 4.45 이상)를 package.json 에 고정, 배포 설정 시험(dry-run) 통과
+
 ## 1.3.1 — 2026-10-27
 - 앱 이름을 «산림치유센터 냉난방관리»로 변경, 새 아이콘 적용(홈 화면·설치 아이콘·탭 아이콘)
 
