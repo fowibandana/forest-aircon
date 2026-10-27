@@ -7,11 +7,11 @@
 <meta name="theme-color" content="#1f6f54">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="치유센터 에어컨">
+<meta name="apple-mobile-web-app-title" content="냉난방관리">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/icon-192.png">
-<title>산림치유센터 에어컨</title>
+<link rel="icon" href="/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>산림치유센터 냉난방관리</title>
 <style>
 :root{
   --bg:#f4f2ec; --card:#ffffff; --ink:#1d2b25; --mute:#6a7a72; --line:#e3e0d6;
@@ -180,7 +180,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <body>
 
 <section id="login" class="hide">
-  <h1>산림치유센터 에어컨</h1>
+  <h1>산림치유센터 냉난방관리</h1>
   <p>관리자 비밀번호를 입력하세요.</p>
   <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password">
   <button class="btn-main" id="loginBtn">들어가기</button>
@@ -191,7 +191,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   <header>
     <div class="top">
       <div>
-        <h1>산림치유센터 에어컨</h1>
+        <h1>산림치유센터 냉난방관리</h1>
         <div class="sub" id="sub">불러오는 중…</div>
       </div>
       <button class="ic" id="refresh" aria-label="새로고침">⟳</button>
@@ -237,7 +237,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.3.0';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.3.1';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null;
 
