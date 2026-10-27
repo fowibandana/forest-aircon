@@ -1,0 +1,32 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'app.forest.aircon'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "app.forest.aircon"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        encoding 'UTF-8'
+    }
+}
+
+// 외부 라이브러리 없이 안드로이드 기본 기능만 사용합니다.
+dependencies {
+}
