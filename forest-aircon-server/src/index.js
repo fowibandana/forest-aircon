@@ -27,6 +27,14 @@ function same(a, b) {
   return d === 0;
 }
 
+// APP_PASSWORD 에는 비밀번호를 여러 개 넣을 수 있다(쉼표 또는 줄바꿈으로 구분). 하나라도 맞으면 들어온다.
+function passwordOk(given, configured) {
+  const list = String(configured).split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+  let ok = false;
+  for (const pw of list) if (same(given, pw)) ok = true;   // 끝까지 다 비교한다
+  return ok;
+}
+
 function deviceRoom(d) {
   return ROOM_OVERRIDES[d.id] || placeOfDevice(d.alias);   // 장소 키 | 'later' | null
 }
@@ -167,7 +175,7 @@ export default {
     if (!env.APP_PASSWORD || !env.THINQ_PAT) {
       return json({ ok: false, error: '서버 설정이 끝나지 않았습니다(APP_PASSWORD, THINQ_PAT 비밀값 필요)' }, 503);
     }
-    if (!same(request.headers.get('x-app-password') || '', env.APP_PASSWORD)) {
+    if (!passwordOk(request.headers.get('x-app-password') || '', env.APP_PASSWORD)) {
       return json({ ok: false, error: '비밀번호가 맞지 않습니다' }, 401);
     }
     try {

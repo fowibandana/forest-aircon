@@ -260,4 +260,14 @@ await t('버전이 상태 응답과 package.json 에 같이 나온다', async ()
   assert.equal(r.version, VERSION);
 });
 
+await t('비밀번호를 여러 개(쉼표·줄바꿈) 넣으면 각각 통과, 그 외는 거절', async () => {
+  const env = { ...ENV, APP_PASSWORD: 'alpha, beta\ngamma-9' };
+  const w = makeWorld({});
+  await withWorld(w, async () => {
+    const st = (pw) => worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': pw } }), env).then((r) => r.status);
+    for (const pw of ['alpha', 'beta', 'gamma-9']) assert.equal(await st(pw), 200, pw);
+    for (const pw of ['', 'alph', 'alpha,beta', 'delta']) assert.equal(await st(pw), 401, pw);
+  });
+});
+
 console.log(process.exitCode ? '\n실패 있음' : `\n전부 통과 (${pass}개)`);
