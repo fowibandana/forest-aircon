@@ -333,6 +333,31 @@ await t('LG가 막혀도 로그인(ping)은 되고, 저장값이 없으면 에�
   } finally { globalThis.fetch = null; }
 });
 
+await t('방별 새로고침: 지정한 에어컨 상태만 읽고(목록 재조회 없음), 모르는 기기는 거절·읽지 않는다', async () => {
+  const kv = { ...makeKV() }; kv.delete = async (k) => { delete kv.m[k]; };
+  const env = { ...ENV, STATE: kv };
+  const w = makeWorld({ nowMin: 9 * 60, items: [item('스마트치유실 B101호', '10:00', '11:00')] });
+  const post = (path, body) => worker.fetch(new Request('https://x' + path, { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify(body) }), env).then((r) => r.json());
+  const lg = () => w.calls.filter((c) => !c.url.includes('jinan-schedule'));
+  await withWorld(w, async () => {
+    const st = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env)).json();
+    const ids = st.floors.flatMap((f) => f.rooms).flatMap((r) => r.devices).filter((d) => !d.unsupported).map((d) => d.id);
+    assert.ok(ids.length >= 3 && kv.m.devlist, '기기 목록이 저장됨');
+    const before = lg().length;
+    const r = await post('/api/refresh', { deviceIds: [ids[0], ids[1], 'zzz-없는-기기'] });
+    assert.equal(r.ok, true); assert.equal(r.devices.length, 3);
+    assert.equal(r.devices[0].ok, true); assert.equal(r.devices[2].ok, false);
+    const calls = lg().slice(before);
+    assert.equal(calls.length, 2, '상태 읽기 2번만: ' + calls.map((c) => c.url).join(' | '));
+    assert.ok(calls.every((c) => /\/state$/.test(c.url)), '목록 조회 없음');
+    const bad = await post('/api/refresh', { deviceIds: [] }); assert.equal(bad.ok, false);
+    // 두 번째 상태 조회: 목록은 저장값, 상태도 저장값 → LG 호출 0
+    const n = lg().length;
+    await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env)).json();
+    assert.equal(lg().length, n);
+  });
+});
+
 await t('비밀값이 빠지면 어느 것이 없는지 알려준다', async () => {
   const call = (env) => worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env).then(async (r) => ({ s: r.status, j: await r.json() }));
   let r = await call({ ASSETS: ENV.ASSETS });

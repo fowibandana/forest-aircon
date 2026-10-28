@@ -40,10 +40,22 @@ function deviceRoom(d) {
 }
 
 // 일정 + 에어컨 목록·상태를 한 번에 모은다. wantRoom(roomKey)가 거짓인 방의 상태는 읽지 않는다(호출 수 절약).
-export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, knownSched = null, devicesOverride = null) {
+// 기기 목록(이름·종류)은 거의 안 바뀌므로 1시간 저장해 두고 쓴다 — 목록 조회 1회를 매번 아낀다.
+// 세탁기 등 에어컨이 아닌 기기나 산림치유센터 밖의 기기는 목록에는 있어도 «상태 갱신은 절대 하지 않는다».
+const LIST_KEY = 'devlist', LIST_TTL_MS = 3600e3;
+export async function deviceList(env, thinq, fresh = false) {
+  if (env.STATE && !fresh) {
+    try { const c = JSON.parse(await env.STATE.get(LIST_KEY) || 'null'); if (c && Array.isArray(c.list) && Date.now() - c.t < LIST_TTL_MS) return c.list; } catch {}
+  }
+  const list = await thinq.listDevices();
+  if (env.STATE) { try { await env.STATE.put(LIST_KEY, JSON.stringify({ t: Date.now(), list })); } catch {} }
+  return list;
+}
+
+export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, knownSched = null, devicesOverride = null, listFresh = false) {
   if (devicesOverride) return { thinq: null, sched: knownSched || await fetchSchedule(fetchFn), devices: devicesOverride };   // 저장해 둔 기기 상태를 재사용(LG 호출 안 함)
   const thinq = new Thinq(env.THINQ_PAT, { fetchFn });
-  const [sched, list] = await Promise.all([knownSched || fetchSchedule(fetchFn), thinq.listDevices()]);
+  const [sched, list] = await Promise.all([knownSched || fetchSchedule(fetchFn), deviceList(env, thinq, listFresh)]);
   const acs = list.filter((d) => /AIR_CONDITIONER/i.test(d.type))
     .map((d) => ({ ...d, room: deviceRoom(d) }))
     .filter((d) => d.room !== 'later');   // 후순위 구역(사무실·업무지원센터 등)은 읽지도 제어하지도 않는다
@@ -81,7 +93,7 @@ async function isPaused(env) {
 }
 
 // LG 호출 한도(오류 1314)를 피하려고, 기기 상태를 잠시 저장해 두고 여러 화면이 같이 쓴다.
-const CACHE_KEY = 'snapcache', CACHE_TTL_MS = 90e3, FORCE_MIN_MS = 20e3;
+const CACHE_KEY = 'snapcache', CACHE_TTL_MS = 300e3, FORCE_MIN_MS = 20e3;
 async function readCache(env) {
   if (!env.STATE) return null;
   try { const c = JSON.parse(await env.STATE.get(CACHE_KEY) || 'null'); return c && Array.isArray(c.devices) ? c : null; } catch { return null; }
@@ -90,7 +102,6 @@ async function writeCache(env, devices) {
   if (!env.STATE) return;
   try { await env.STATE.put(CACHE_KEY, JSON.stringify({ t: Date.now(), devices })); } catch {}
 }
-async function dropCache(env) { if (env.STATE) { try { await env.STATE.delete(CACHE_KEY); } catch {} } }
 
 async function statusResponse(env, fresh = false) {
   const smap = await loadSettings(env);
@@ -101,7 +112,9 @@ async function statusResponse(env, fresh = false) {
     snap = await snapshot(env, fetch, () => true, null, cache.devices);
   } else {
     try {
-      snap = await snapshot(env);
+      snap = await snapshot(env, fetch, () => true, null, null, fresh);
+      const read = snap.devices.filter((d) => !d.skipped), failed = read.filter((d) => !d.ok);
+      if (read.length && failed.length === read.length) throw new Error(failed[0].error);   // 전부 읽기 실패(한도 등): 실패 값을 저장하지 않고 이전 값/안내로 처리
       await writeCache(env, snap.devices);
     } catch (e) {
       let sched;
@@ -152,7 +165,7 @@ async function controlResponse(env, body) {
     if (!(value >= 16 && value <= 30)) return json({ ok: false, error: '온도는 16~30°C 사이로 입력하세요' }, 400);
   }
   const thinq = new Thinq(env.THINQ_PAT);
-  const acs = (await thinq.listDevices()).filter((d) => /AIR_CONDITIONER/i.test(d.type));
+  const acs = (await deviceList(env, thinq)).filter((d) => /AIR_CONDITIONER/i.test(d.type));
   const known = new Set(acs.filter((d) => { const k = deviceRoom(d); return k && PLACES[k] && !PLACES[k].noapi; }).map((d) => d.id));
   const results = [];
   for (const id of ids) {
@@ -165,8 +178,30 @@ async function controlResponse(env, body) {
     } catch (e) { results.push({ id, ok: false, error: e.message }); }
     await sleep(300);
   }
-  await dropCache(env);   // 제어 직후에는 다음 조회에서 새로 읽는다
   return json({ ok: results.every((r) => r.ok), results });
+}
+
+// 방(또는 층) 단위 새로고침: 지정한 에어컨의 상태만 읽는다(목록 조회 없음, 저장된 목록으로 허용 여부 확인).
+async function refreshResponse(env, body) {
+  const ids = Array.isArray(body.deviceIds) ? [...new Set(body.deviceIds.map(String))] : [];
+  if (!ids.length) return json({ ok: false, error: '대상 에어컨이 없습니다' }, 400);
+  if (ids.length > 14) return json({ ok: false, error: '한 번에 14대까지만 새로고침합니다' }, 400);
+  const thinq = new Thinq(env.THINQ_PAT);
+  const acs = (await deviceList(env, thinq)).filter((d) => /AIR_CONDITIONER/i.test(d.type));
+  const allowed = new Set(acs.filter((d) => { const k = deviceRoom(d); return k && PLACES[k] && !PLACES[k].noapi; }).map((d) => d.id));
+  const out = [];
+  for (const id of ids) {
+    if (!allowed.has(id)) { out.push({ id, ok: false, error: '새로고침 대상이 아닙니다(미등록·후순위·API 미지원)' }); continue; }
+    try { out.push({ id, ok: true, ...(await thinq.getState(id)) }); }
+    catch (e) { out.push({ id, ok: false, error: e.message }); if (e.status === 1314) break; }   // 한도에 걸리면 더 부르지 않는다
+  }
+  // 저장해 둔 상태에도 반영(다른 화면이 같은 값을 보도록)
+  const cache = await readCache(env);
+  if (cache) {
+    for (const r of out) { const i = cache.devices.findIndex((d) => d.id === r.id); if (i >= 0 && r.ok) cache.devices[i] = { ...cache.devices[i], ...r, ok: true, error: undefined, skipped: undefined }; }
+    if (env.STATE) { try { await env.STATE.put(CACHE_KEY, JSON.stringify(cache)); } catch {} }
+  }
+  return json({ ok: true, devices: out.map((r) => ({ id: r.id, ok: !!r.ok, error: r.error || null, power: r.power || null, mode: r.mode || null, cur: r.cur ?? null, target: r.target ?? null })) });
 }
 
 async function applyOne(thinq, id, a) {
@@ -239,6 +274,7 @@ export default {
         const list = await new Thinq(env.THINQ_PAT).listDevices();
         return json({ ok: true, devices: list.map((d) => ({ ...d, room: deviceRoom(d) || null })) });
       }
+      if (url.pathname === '/api/refresh' && request.method === 'POST') return await refreshResponse(env, await request.json());
       if (url.pathname === '/api/control' && request.method === 'POST') return await controlResponse(env, await request.json());
       if (url.pathname === '/api/settings' && request.method === 'POST') {
         if (!env.STATE) return json({ ok: false, error: '설정을 저장하려면 서버에 KV(STATE)를 연결해야 합니다(README 참고)' }, 400);
