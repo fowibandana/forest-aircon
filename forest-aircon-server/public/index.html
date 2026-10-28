@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1f6f54">
-<meta name="color-scheme" content="light only">
+<meta name="color-scheme" content="only light">
+<meta name="supported-color-schemes" content="light">
+<meta name="darkreader-lock">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="냉난방관리">
@@ -14,7 +16,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>산림치유센터 냉난방관리</title>
 <style>
-:root{color-scheme:light;
+:root{color-scheme:only light;
   --bg:#f4f2ec; --card:#ffffff; --ink:#1d2b25; --mute:#6a7a72; --line:#e3e0d6;
   --brand:#1f6f54; --brand-ink:#ffffff; --cool:#2b6fd6; --heat:#d9622b; --off:#8a948f;
   --ok:#1f8a5b; --warn:#b7791f; --bad:#c0392b; --chip:#eef3ef; --p-neutral:#e9e6dc; --p-room:#fbfaf6;
@@ -64,6 +66,8 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .plan{margin:2px 0 14px;background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:10px 10px 8px}
 .plan svg{display:block;width:100%;height:auto;overflow:visible}
 .plan .bldg{filter:drop-shadow(0 3px 7px rgba(20,35,28,.20))}
+@media (prefers-color-scheme:dark){:root{color-scheme:only light}}
+.plan,.plan svg,.plan rect,.plan path,.plan line,.plan ellipse,.plan circle{forced-color-adjust:none}
 .plan text{font-family:inherit;fill:var(--ink);text-anchor:middle;pointer-events:none}
 .pl{fill:var(--p-neutral);stroke:var(--wall);stroke-width:3.5;stroke-linejoin:round}
 .pl.room{fill:var(--p-room);cursor:pointer}
@@ -269,7 +273,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.4.8';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.4.9';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null;
 
@@ -332,11 +336,11 @@ $('refresh').onclick = () => load(false, true);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && store.get()) load(); });
 
 /* ── 평면도 ── 주간운영계획 안내 화면(display)의 평면 좌표를 옮겼다: [u0, u1, v0, v1, 종류, 방 키]. 가로 54m × 세로 15m */
-const PW = 1000, PH0 = 528, PH_OF = { '2F': 640 };   // 세로는 보기 좋게 늘려서 그린다(2층은 더 크게)
+const PW = 1000, PH0 = 528, PH_OF = {};   // 모든 층의 도면 크기·계단/엘리베이터/화장실 크기를 똑같이 맞춘다(층을 바꿔도 크기가 변하지 않게)
 const PLAN = {
-  '2F': [[0.0,1,0.43,0.56,'corr',''],[0.0,0.094,0,0.43,'stairs',''],[0.094,0.351,0,0.43,'core',''],[0.356,0.675,0,0.43,'room','r205'],[0.679,1,0,0.43,'room','r204'],[0.0,0.309,0.56,1,'room','r201'],[0.312,0.665,0.56,1,'room','r202'],[0.669,1,0.56,1,'room','r203']],
-  '1F': [[.19,.766,.42,.57,'corr',''],[0,.073,0,.42,'stairs',''],[.075,.271,0,.42,'core',''],
-    [.274,.763,0,.42,'room','hp2'],[0,.19,.42,1,'room','lobby1'],[.192,.763,.57,1,'room','hp1'],[.766,1,0,1,'room','haearim']],
+  '2F': [[0.0,1,0.43,0.56,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],[0.358,0.675,0,0.43,'room','r205'],[0.679,1,0,0.43,'room','r204'],[0.0,0.309,0.56,1,'room','r201'],[0.312,0.665,0.56,1,'room','r202'],[0.669,1,0.56,1,'room','r203']],
+  '1F': [[.19,.766,.43,.57,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],
+    [.358,.763,0,.43,'room','hp2'],[0,.19,.43,1,'room','lobby1'],[.192,.763,.57,1,'room','hp1'],[.766,1,0,1,'room','haearim']],
   'B1': [[.247,1,.43,.57,'corr',''],[0,.096,0,.43,'stairs',''],[.1,.355,0,.43,'core',''],
     [.358,.469,0,.43,'room','dressF'],[.471,.582,0,.43,'room','dressM'],[.584,.694,0,.43,'room','supply'],[.695,1,0,.43,'room','media'],
     [0,.247,.43,1,'room','b1lobby'],[.249,.391,.57,1,'room','b101'],[.393,.774,.57,1,'room','b102'],[.776,1,.57,1,'room','media']],
