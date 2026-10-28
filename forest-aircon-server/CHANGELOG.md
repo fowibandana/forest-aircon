@@ -2,6 +2,9 @@
 
 버전은 `src/version.js`, `package.json`, `public/index.html`(APP_VERSION) 세 곳에서 같이 올립니다. 화면 맨 아래에 «화면 vX · 서버 vY»로 표시됩니다.
 
+## 1.4.5 — 2026-10-28
+- 다크 모드 제거: 기기 설정과 관계없이 항상 밝은 화면(폰·PC 동일)
+
 ## 1.4.4 — 2026-10-28
 - 수정: LG 서버 호출 시 Cloudflare 에서 "Illegal invocation" 오류가 나던 문제(fetch 를 메서드로 호출하던 부분). 테스트의 가짜 fetch 도 같은 조건으로 검사하도록 강화
 

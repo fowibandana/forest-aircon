@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#1f6f54">
+<meta name="color-scheme" content="light only">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="냉난방관리">
@@ -13,18 +14,12 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>산림치유센터 냉난방관리</title>
 <style>
-:root{
+:root{color-scheme:light;
   --bg:#f4f2ec; --card:#ffffff; --ink:#1d2b25; --mute:#6a7a72; --line:#e3e0d6;
   --brand:#1f6f54; --brand-ink:#ffffff; --cool:#2b6fd6; --heat:#d9622b; --off:#8a948f;
   --ok:#1f8a5b; --warn:#b7791f; --bad:#c0392b; --chip:#eef3ef; --p-neutral:#e9e6dc; --p-room:#fbfaf6;
   --wall:#4d6157; --glass:#b9dcec; --p-corr:#ece9de; --p-wet:#e3ecee; --p-stair:#f1efe7; --paper:#f7f5ee;
 }
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
-         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27;
-         --wall:#a7bbb0; --glass:#2f5a70; --p-corr:#2a332f; --p-wet:#25343a; --p-stair:#2c3531; --paper:#171d1a; color-scheme:dark} }
-:root[data-theme="dark"]{ --bg:#121715; --card:#1b221f; --ink:#e8efeb; --mute:#98a8a0; --line:#2b3531; --brand:#3aa57f; --brand-ink:#08130e;
-         --cool:#6aa2ff; --heat:#ff9a62; --off:#7c8a84; --chip:#242d29; --p-neutral:#2a332f; --p-room:#222b27;
-         --wall:#a7bbb0; --glass:#2f5a70; --p-corr:#2a332f; --p-wet:#25343a; --p-stair:#2c3531; --paper:#171d1a; color-scheme:dark}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--bg);color:var(--ink);font-family:'Noto Sans KR','Malgun Gothic',system-ui,sans-serif}
 body{padding:0 16px calc(24px + env(safe-area-inset-bottom));max-width:640px;margin:0 auto}
@@ -274,7 +269,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.4.4';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.4.5';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null;
 
