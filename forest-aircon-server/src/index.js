@@ -40,7 +40,8 @@ function deviceRoom(d) {
 }
 
 // 일정 + 에어컨 목록·상태를 한 번에 모은다. wantRoom(roomKey)가 거짓인 방의 상태는 읽지 않는다(호출 수 절약).
-export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, knownSched = null) {
+export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, knownSched = null, devicesOverride = null) {
+  if (devicesOverride) return { thinq: null, sched: knownSched || await fetchSchedule(fetchFn), devices: devicesOverride };   // 저장해 둔 기기 상태를 재사용(LG 호출 안 함)
   const thinq = new Thinq(env.THINQ_PAT, { fetchFn });
   const [sched, list] = await Promise.all([knownSched || fetchSchedule(fetchFn), thinq.listDevices()]);
   const acs = list.filter((d) => /AIR_CONDITIONER/i.test(d.type))
@@ -79,8 +80,35 @@ async function isPaused(env) {
   try { return (await env.STATE.get('paused')) === '1'; } catch { return false; }
 }
 
-async function statusResponse(env) {
-  const [snap, smap] = await Promise.all([snapshot(env), loadSettings(env)]);
+// LG 호출 한도(오류 1314)를 피하려고, 기기 상태를 잠시 저장해 두고 여러 화면이 같이 쓴다.
+const CACHE_KEY = 'snapcache', CACHE_TTL_MS = 90e3, FORCE_MIN_MS = 20e3;
+async function readCache(env) {
+  if (!env.STATE) return null;
+  try { const c = JSON.parse(await env.STATE.get(CACHE_KEY) || 'null'); return c && Array.isArray(c.devices) ? c : null; } catch { return null; }
+}
+async function writeCache(env, devices) {
+  if (!env.STATE) return;
+  try { await env.STATE.put(CACHE_KEY, JSON.stringify({ t: Date.now(), devices })); } catch {}
+}
+async function dropCache(env) { if (env.STATE) { try { await env.STATE.delete(CACHE_KEY); } catch {} } }
+
+async function statusResponse(env, fresh = false) {
+  const smap = await loadSettings(env);
+  const cache = await readCache(env);
+  const age = cache ? Date.now() - cache.t : Infinity;
+  let snap, stale = null;
+  if (cache && (age < FORCE_MIN_MS || (!fresh && age < CACHE_TTL_MS))) {
+    snap = await snapshot(env, fetch, () => true, null, cache.devices);
+  } else {
+    try {
+      snap = await snapshot(env);
+      await writeCache(env, snap.devices);
+    } catch (e) {
+      if (!cache) throw e;   // 저장해 둔 값도 없으면 그대로 오류
+      snap = await snapshot(env, fetch, () => true, null, cache.devices);
+      stale = { ageSec: Math.round(age / 1000), reason: e.message };
+    }
+  }
   const { by, decisions, cfgs } = evaluate(snap.sched, snap.devices, smap);
   const floors = FLOOR_ORDER.map((f) => ({
     floor: f,
@@ -94,6 +122,8 @@ async function statusResponse(env) {
   }));
   return {
     version: VERSION,
+    stale,
+    cachedSec: Number.isFinite(age) && !stale ? Math.round(age / 1000) : 0,
     date: snap.sched.date,
     nowMin: snap.sched.nowMin,
     floors,
@@ -128,6 +158,7 @@ async function controlResponse(env, body) {
     } catch (e) { results.push({ id, ok: false, error: e.message }); }
     await sleep(300);
   }
+  await dropCache(env);   // 제어 직후에는 다음 조회에서 새로 읽는다
   return json({ ok: results.every((r) => r.ok), results });
 }
 
@@ -182,7 +213,7 @@ export default {
       return json({ ok: false, error: '비밀번호가 맞지 않습니다' }, 401);
     }
     try {
-      if (url.pathname === '/api/status' && request.method === 'GET') return json({ ok: true, ...(await statusResponse(env)) });
+      if (url.pathname === '/api/status' && request.method === 'GET') return json({ ok: true, ...(await statusResponse(env, url.searchParams.get('fresh') === '1')) });
       if (url.pathname === '/api/devices' && request.method === 'GET') {
         const list = await new Thinq(env.THINQ_PAT).listDevices();
         return json({ ok: true, devices: list.map((d) => ({ ...d, room: deviceRoom(d) || null })) });

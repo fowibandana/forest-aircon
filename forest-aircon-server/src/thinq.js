@@ -40,6 +40,7 @@ export class Thinq {
       throw new ThinqError('네트워크 오류: ' + e.message, -1);
     }
     const text = await r.text();
+    if (/"code"\s*:\s*"?1314"?/.test(text)) throw new ThinqError('LG 서버의 호출 횟수 한도에 걸렸습니다. 잠시(몇 분) 뒤에 다시 시도해 주세요', 1314);
     if (r.status >= 400) throw new ThinqError('HTTP ' + r.status + ' ' + text.replace(/\s+/g, ' ').slice(0, 200), r.status);
     try { return text ? JSON.parse(text) : {}; } catch { throw new ThinqError('응답 해석 실패: ' + text.slice(0, 100), -2); }
   }

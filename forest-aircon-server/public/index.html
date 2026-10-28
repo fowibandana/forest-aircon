@@ -269,7 +269,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.4.5';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.4.6';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null;
 
@@ -312,14 +312,14 @@ $('loginBtn').onclick = async () => {
 $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginBtn').click(); });
 
 /* ── 불러오기 ── */
-async function load(first) {
+async function load(first, fresh) {
   if (busy) return; busy = true; $('refresh').classList.add('spin');
   try {
-    DATA = await api('/api/status');
+    DATA = await api('/api/status' + (fresh ? '?fresh=1' : ''));
     $('login').classList.add('hide'); $('app').classList.remove('hide');
-    $('err').innerHTML = '';
+    $('err').innerHTML = DATA.stale ? `<div class="err">LG 서버에서 새로 읽지 못해 ${DATA.stale.ageSec}초 전 값을 보여줍니다. ${esc(DATA.stale.reason)}</div>` : '';
     render();
-    if (first) { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 60000); }
+    if (first) { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 120000); }
   } catch (e) {
     if (e.auth) throw e;
     if (!DATA) { if (first) throw e; }
@@ -327,7 +327,7 @@ async function load(first) {
     if (first) { $('login').classList.add('hide'); $('app').classList.remove('hide'); }
   } finally { busy = false; $('refresh').classList.remove('spin'); }
 }
-$('refresh').onclick = () => load();
+$('refresh').onclick = () => load(false, true);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && store.get()) load(); });
 
 /* ── 평면도 ── 주간운영계획 안내 화면(display)의 평면 좌표를 옮겼다: [u0, u1, v0, v1, 종류, 방 키]. 가로 54m × 세로 15m */

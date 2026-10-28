@@ -272,6 +272,34 @@ await t('비밀번호를 여러 개(쉼표·줄바꿈) 넣으면 각각 통과, 
   });
 });
 
+await t('LG 호출을 아끼는 저장값: 두 번째 조회는 LG를 부르지 않고, LG가 막히면 이전 값을 보여준다', async () => {
+  const kv = { ...makeKV() }; kv.delete = async (k) => { delete kv.m[k]; };
+  const env = { ...ENV, STATE: kv };
+  const get = (q = '') => worker.fetch(new Request('https://x/api/status' + q, { headers: { 'x-app-password': 'pw' } }), env).then((r) => r.json());
+  const w = makeWorld({ nowMin: 9 * 60, items: [item('스마트치유실 B101호', '10:00', '11:00')] });
+  const lgCalls = () => w.calls.filter((c) => !c.url.includes('jinan-schedule')).length;
+  await withWorld(w, async () => {
+    const a = await get(); assert.equal(a.ok, true);
+    const n1 = lgCalls(); assert.ok(n1 > 1);
+    const b = await get(); assert.equal(lgCalls(), n1, '저장값이 있으면 LG 호출 없음');
+    assert.equal(b.floors.length, a.floors.length);
+    const c = await get('?fresh=1'); assert.equal(lgCalls(), n1, '20초 안의 새로고침도 저장값 사용');
+    // 저장값을 오래된 것으로 만들고, LG가 한도 오류를 내는 상황
+    const cache = JSON.parse(kv.m.snapcache); cache.t -= 5 * 60e3; kv.m.snapcache = JSON.stringify(cache);
+    const real = globalThis.fetch;
+    globalThis.fetch = async (url, o) => url.includes('jinan-schedule') ? real(url, o) : new Response('{"error":{"message":"Exceeded User API calls","code":"1314"}}', { status: 401 });
+    const d = await get(); assert.equal(d.ok, true);
+    assert.ok(d.stale && d.stale.ageSec >= 290 && /한도/.test(d.stale.reason), '오래된 값 + 이유 표시');
+    globalThis.fetch = real;
+    // 저장값 없이 한도 오류면 친절한 문구로 실패
+    delete kv.m.snapcache;
+    globalThis.fetch = async (url, o) => url.includes('jinan-schedule') ? real(url, o) : new Response('{"error":{"message":"Exceeded User API calls","code":"1314"}}', { status: 401 });
+    const e = await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env);
+    assert.ok(e.status >= 500); assert.match((await e.json()).error, /한도/);
+    globalThis.fetch = real;
+  });
+});
+
 await t('비밀값이 빠지면 어느 것이 없는지 알려준다', async () => {
   const call = (env) => worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env).then(async (r) => ({ s: r.status, j: await r.json() }));
   let r = await call({ ASSETS: ENV.ASSETS });
