@@ -104,9 +104,16 @@ async function statusResponse(env, fresh = false) {
       snap = await snapshot(env);
       await writeCache(env, snap.devices);
     } catch (e) {
-      if (!cache) throw e;   // 저장해 둔 값도 없으면 그대로 오류
-      snap = await snapshot(env, fetch, () => true, null, cache.devices);
-      stale = { ageSec: Math.round(age / 1000), reason: e.message };
+      let sched;
+      try { sched = await fetchSchedule(fetch); } catch { sched = { date: '', nowMin: 0, items: [] }; }
+      if (cache) {
+        snap = await snapshot(env, fetch, () => true, sched, cache.devices);
+        stale = { ageSec: Math.round(age / 1000), reason: e.message };
+      } else {
+        // 저장된 값도 없으면: 에어컨 상태 없이 방 구성(평면도)만 보여주고 이유를 알린다 — 로그인은 막지 않는다
+        snap = await snapshot(env, fetch, () => true, sched, []);
+        stale = { ageSec: null, reason: e.message };
+      }
     }
   }
   const { by, decisions, cfgs } = evaluate(snap.sched, snap.devices, smap);
@@ -225,6 +232,7 @@ export default {
     if (!passwordOk(request.headers.get('x-app-password') || '', env.APP_PASSWORD)) {
       return json({ ok: false, error: '비밀번호가 맞지 않습니다' }, 401);
     }
+    if (url.pathname === '/api/ping') return json({ ok: true, version: VERSION });   // 비밀번호 확인만(LG 호출 없음)
     try {
       if (url.pathname === '/api/status' && request.method === 'GET') return json({ ok: true, ...(await statusResponse(env, url.searchParams.get('fresh') === '1')) });
       if (url.pathname === '/api/devices' && request.method === 'GET') {

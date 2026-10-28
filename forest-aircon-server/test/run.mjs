@@ -291,11 +291,11 @@ await t('LG 호출을 아끼는 저장값: 두 번째 조회는 LG를 부르지 
     const d = await get(); assert.equal(d.ok, true);
     assert.ok(d.stale && d.stale.ageSec >= 290 && /한도/.test(d.stale.reason), '오래된 값 + 이유 표시');
     globalThis.fetch = real;
-    // 저장값 없이 한도 오류면 친절한 문구로 실패
+    // 저장값 없이 한도 오류면 에어컨 없이 이유만 알려준다
     delete kv.m.snapcache;
     globalThis.fetch = async (url, o) => url.includes('jinan-schedule') ? real(url, o) : new Response('{"error":{"message":"Exceeded User API calls","code":"1314"}}', { status: 401 });
     const e = await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env);
-    assert.ok(e.status >= 500); assert.match((await e.json()).error, /한도/);
+    const ej = await e.json(); assert.equal(e.status, 200); assert.equal(ej.stale.ageSec, null); assert.match(ej.stale.reason, /한도/);   // 로그인은 막지 않고 이유만 알린다
     globalThis.fetch = real;
   });
 });
@@ -315,6 +315,22 @@ await t('자동 점검은 필요한 때만 LG를 부른다(시작 60분 전부�
   for (const hm of ['09:00', '09:30', '10:00', '10:30', '11:10']) {
     const x = await run(hm); assert.ok(x.lg > 0, hm + ' 에는 LG 호출'); assert.ok(!x.r.skipped, hm);
   }
+});
+
+await t('LG가 막혀도 로그인(ping)은 되고, 저장값이 없으면 에어컨 없이 방 구성만 보여준다', async () => {
+  const w = makeWorld({ nowMin: 9 * 60, items: [item('스마트치유실 B101호', '10:00', '11:00')] });
+  const real = w.fetchFn;
+  const blocked = async (url, o) => url.includes('jinan-schedule') ? real(url, o) : new Response('{"error":{"message":"Exceeded User API calls","code":"1314"}}', { status: 401 });
+  const call = (path, pw = 'pw') => worker.fetch(new Request('https://x' + path, { headers: { 'x-app-password': pw } }), ENV);
+  globalThis.fetch = blocked;
+  try {
+    assert.equal((await call('/api/ping')).status, 200);
+    assert.equal((await call('/api/ping', 'bad')).status, 401);
+    const r = await (await call('/api/status')).json();
+    assert.equal(r.ok, true); assert.equal(r.stale.ageSec, null); assert.match(r.stale.reason, /한도/);
+    assert.equal(r.floors.length, 3); assert.ok(r.floors.every((f) => f.rooms.length > 0));
+    assert.ok(r.floors.flatMap((f) => f.rooms).every((x) => x.devices.length === 0));
+  } finally { globalThis.fetch = null; }
 });
 
 await t('비밀값이 빠지면 어느 것이 없는지 알려준다', async () => {

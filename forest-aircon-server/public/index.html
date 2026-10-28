@@ -269,7 +269,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.4.7';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.4.8';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null;
 
@@ -307,7 +307,8 @@ function showLogin(msg) {
 $('loginBtn').onclick = async () => {
   store.set($('pw').value.trim());
   $('loginErr').textContent = '확인 중…';
-  try { await load(true); } catch (e) { if (e.auth) { store.clear(); showLogin(e.message); } else { showLogin(e.message); } }
+  try { await api('/api/ping'); } catch (e) { if (e.auth) { store.clear(); } showLogin(e.message); return; }   // 비밀번호만 먼저 확인(LG와 무관)
+  try { await load(true); } catch (e) { showLogin('로그인은 되었지만 화면을 불러오지 못했습니다: ' + e.message); }
 };
 $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginBtn').click(); });
 
@@ -317,7 +318,7 @@ async function load(first, fresh) {
   try {
     DATA = await api('/api/status' + (fresh ? '?fresh=1' : ''));
     $('login').classList.add('hide'); $('app').classList.remove('hide');
-    $('err').innerHTML = DATA.stale ? `<div class="err">LG 서버에서 새로 읽지 못해 ${DATA.stale.ageSec}초 전 값을 보여줍니다. ${esc(DATA.stale.reason)}</div>` : '';
+    $('err').innerHTML = DATA.stale ? `<div class="err">${DATA.stale.ageSec == null ? 'LG 서버에서 에어컨 상태를 읽지 못했습니다(방 구성만 보여줍니다).' : 'LG 서버에서 새로 읽지 못해 ' + DATA.stale.ageSec + '초 전 값을 보여줍니다.'} ${esc(DATA.stale.reason)}</div>` : '';
     render();
     if (first) { clearInterval(timer); timer = setInterval(() => { if (!document.hidden) load(); }, 120000); }
   } catch (e) {
