@@ -173,7 +173,8 @@ export default {
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
 
     if (!env.APP_PASSWORD || !env.THINQ_PAT) {
-      return json({ ok: false, error: '서버 설정이 끝나지 않았습니다(APP_PASSWORD, THINQ_PAT 비밀값 필요)' }, 503);
+      const missing = ['APP_PASSWORD', 'THINQ_PAT'].filter((k) => !env[k]);
+      return json({ ok: false, error: `서버 설정이 끝나지 않았습니다(없는 비밀값: ${missing.join(', ')})` }, 503);
     }
     if (!passwordOk(request.headers.get('x-app-password') || '', env.APP_PASSWORD)) {
       return json({ ok: false, error: '비밀번호가 맞지 않습니다' }, 401);

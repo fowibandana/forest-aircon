@@ -270,4 +270,12 @@ await t('비밀번호를 여러 개(쉼표·줄바꿈) 넣으면 각각 통과, 
   });
 });
 
+await t('비밀값이 빠지면 어느 것이 없는지 알려준다', async () => {
+  const call = (env) => worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env).then(async (r) => ({ s: r.status, j: await r.json() }));
+  let r = await call({ ASSETS: ENV.ASSETS });
+  assert.equal(r.s, 503); assert.match(r.j.error, /APP_PASSWORD, THINQ_PAT/);
+  r = await call({ ASSETS: ENV.ASSETS, APP_PASSWORD: 'pw' });
+  assert.match(r.j.error, /THINQ_PAT/); assert.ok(!/APP_PASSWORD/.test(r.j.error.split('없는 비밀값')[1]));
+});
+
 console.log(process.exitCode ? '\n실패 있음' : `\n전부 통과 (${pass}개)`);
