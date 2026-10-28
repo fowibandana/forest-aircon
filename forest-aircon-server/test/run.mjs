@@ -32,7 +32,9 @@ function makeWorld({ nowMin = 9 * 60, items = [], temps = {}, power = {}, mode =
     };
   }
   const nowMs = Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + nowMin * 60e3;
-  const fetchFn = async (url, opt = {}) => {
+  const fetchFn = async function (url, opt = {}) {
+    // 진짜 Workers 의 fetch 처럼, 메서드로 호출되면(this 가 객체) 거절한다
+    if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation: function called with incorrect `this` reference');
     calls.push({ url, method: opt.method || 'GET', body: opt.body ? JSON.parse(opt.body) : null });
     const ok = (o) => new Response(JSON.stringify(o), { status: 200 });
     if (url.includes('jinan-schedule')) return ok({ ok: true, date: '2026-10-27', serverMs: nowMs, items });

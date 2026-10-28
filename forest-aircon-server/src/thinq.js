@@ -14,9 +14,9 @@ export class ThinqError extends Error {
 }
 
 export class Thinq {
-  constructor(pat, { fetchFn = fetch, base = CONFIG.THINQ_BASE, clientId = 'forest-aircon-server' } = {}) {
+  constructor(pat, { fetchFn = (...a) => fetch(...a), base = CONFIG.THINQ_BASE, clientId = 'forest-aircon-server' } = {}) {
     this.pat = String(pat || '').trim();
-    this.fetch = fetchFn;
+    this.fetchFn = fetchFn;   // 메서드로 호출하면 Workers 가 "Illegal invocation" 을 내므로 아래에서 변수로 꺼내 호출
     this.base = base;
     this.clientId = clientId;
   }
@@ -34,7 +34,8 @@ export class Thinq {
     if (control) headers['x-conditional-control'] = 'true';
     let r;
     try {
-      r = await this.fetch(this.base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const doFetch = this.fetchFn;
+      r = await doFetch(this.base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
     } catch (e) {
       throw new ThinqError('네트워크 오류: ' + e.message, -1);
     }
