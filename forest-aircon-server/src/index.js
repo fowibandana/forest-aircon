@@ -2,7 +2,7 @@ import { CONFIG, ROOM_OVERRIDES } from './config.js';
 import { PLACES, FLOOR_ORDER, placeOfDevice } from './rooms.js';
 import { fetchSchedule, itemsByRoom, summarizeRoom } from './schedule.js';
 import { Thinq } from './thinq.js';
-import { decideRoom } from './auto.js';
+import { decideRoom, shouldCheckLG } from './auto.js';
 import { VERSION } from './version.js';
 import { cleanSettings, loadSettings, settingsOf, cfgOf, DEFAULTS } from './settings.js';
 
@@ -170,12 +170,12 @@ async function applyOne(thinq, id, a) {
 }
 
 // 5분마다 도는 자동 제어
-export async function runAuto(env, fetchFn = fetch, now = new Date()) {
+export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched = null) {
   const hour = new Date(now.getTime() + 9 * 3600 * 1000).getUTCHours();
   if (hour < CONFIG.ACTIVE_FROM_HOUR || hour >= CONFIG.ACTIVE_TO_HOUR) return { skipped: 'time' };
   if (await isPaused(env)) { console.log('[auto] 일시중지 중'); return { skipped: 'paused' }; }
 
-  const sched = await fetchSchedule(fetchFn);
+  const sched = knownSched || await fetchSchedule(fetchFn);
   const by = itemsByRoom(sched.items);
   const snap = await snapshot(env, fetchFn, (k) => (by[k] || []).length > 0, sched);
   const { decisions } = evaluate(snap.sched, snap.devices, await loadSettings(env));
@@ -196,6 +196,19 @@ export async function runAuto(env, fetchFn = fetch, now = new Date()) {
   }
   if (!log.length) console.log('[auto] 조치 없음', JSON.stringify(Object.fromEntries(Object.entries(decisions).filter(([, d]) => d.state !== 'none').map(([k, d]) => [k, d.reason]))));
   return { live, log };
+}
+
+// 5분마다 깨어나지만, LG 는 «필요한 때»에만 부른다(일정 시작 60분 전부터, 30분마다 + 중요한 순간)
+export async function tickAuto(env, fetchFn = fetch, now = new Date()) {
+  const hour = new Date(now.getTime() + 9 * 3600 * 1000).getUTCHours();
+  if (hour < CONFIG.ACTIVE_FROM_HOUR || hour >= CONFIG.ACTIVE_TO_HOUR) return { skipped: 'time' };
+  const sched = await fetchSchedule(fetchFn);
+  const smap = await loadSettings(env);
+  const by = itemsByRoom(sched.items);
+  const g = shouldCheckLG({ by, allItems: sched.items, nowMin: sched.nowMin, settingsOf: (k) => settingsOf(smap, k).settings, graceMin: CONFIG.POST_GRACE_MIN });
+  if (!g.run) { console.log('[auto] LG 호출 안 함 —', g.why); return { skipped: 'gate', why: g.why }; }
+  console.log('[auto] LG 확인 —', g.why);
+  return runAuto(env, fetchFn, now, sched);
 }
 
 export default {
@@ -249,6 +262,6 @@ export default {
 
   async scheduled(event, env, ctx) {
     if (!env.THINQ_PAT) { console.log('[auto] THINQ_PAT 없음'); return; }
-    ctx.waitUntil(runAuto(env).catch((e) => console.log('[auto] 오류', e.message)));
+    ctx.waitUntil(tickAuto(env).catch((e) => console.log('[auto] 오류', e.message)));
   },
 };

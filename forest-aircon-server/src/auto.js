@@ -51,3 +51,28 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
   }
   return none(allDone ? 'done' : 'gap', allDone ? '일정 종료 직후 대기' : '다음 일정까지 대기', temp);
 }
+
+// ── LG 호출을 아끼기 위한 «언제 LG 를 부를지» 판단(순수 함수) ──
+// 5분마다 깨어나도 대부분은 여기서 «지금은 안 부른다»로 끝난다.
+//  · 각 방의 일정 시작 (60분 또는 미리 켜는 시간 중 긴 쪽) 전부터 마지막 일정 종료 후 정리 시간+30분까지가 «점검 구간»
+//  · 점검 구간 안에서는 30분마다 한 번(매시 :00, :30 부근)
+//  · 그리고 «중요한 순간»(미리 켜기 시작, 시작, 종료 후 끄기)이 이번 5분 안에 있으면 바로 한 번
+export const AUTO_INTERVAL_MIN = 30, AUTO_WINDOW_MIN = 60, TICK_MIN = 5;
+export function shouldCheckLG({ by, allItems, nowMin, settingsOf, graceMin }) {
+  const tick = nowMin - (nowMin % TICK_MIN);
+  const onGrid = nowMin % AUTO_INTERVAL_MIN < TICK_MIN;
+  let inWindow = false;
+  for (const [key, roomItems] of Object.entries(by)) {
+    if (!roomItems.length) continue;
+    const st = settingsOf(key);
+    if (!st.enabled) continue;
+    const spans = roomItems.map((it) => spanOf(it, allItems));
+    const first = Math.min(...spans.map((x) => x.s)), last = Math.max(...spans.map((x) => x.e));
+    const moments = spans.flatMap((x) => [x.s - st.pre, x.s, x.e + graceMin]);
+    const hit = moments.find((m) => m >= tick && m < tick + TICK_MIN);
+    if (hit !== undefined) return { run: true, why: `중요한 순간(${key})` };
+    if (nowMin >= first - Math.max(AUTO_WINDOW_MIN, st.pre) && nowMin < last + graceMin + AUTO_INTERVAL_MIN) inWindow = true;
+  }
+  if (inWindow && onGrid) return { run: true, why: '점검 구간 정기 확인' };
+  return { run: false, why: inWindow ? '점검 구간 — 다음 정기 확인까지 대기' : '점검 구간 아님' };
+}

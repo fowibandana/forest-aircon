@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import worker, { runAuto, snapshot } from '../src/index.js';
+import worker, { tickAuto, runAuto, snapshot } from '../src/index.js';
 import { decideRoom } from '../src/auto.js';
 import { CONFIG } from '../src/config.js';
 
@@ -298,6 +298,23 @@ await t('LG 호출을 아끼는 저장값: 두 번째 조회는 LG를 부르지 
     assert.ok(e.status >= 500); assert.match((await e.json()).error, /한도/);
     globalThis.fetch = real;
   });
+});
+
+await t('자동 점검은 필요한 때만 LG를 부른다(시작 60분 전부터 30분마다 + 중요한 순간)', async () => {
+  const items = [item('스마트치유실 B101호', '10:00', '11:00')];
+  const run = async (hhmm) => {
+    const [h, m] = hhmm.split(':').map(Number); const nowMin = h * 60 + m;
+    const w = makeWorld({ nowMin, items });
+    const now = new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + nowMin * 60e3);
+    const r = await withWorld(w, () => tickAuto({ ...ENV, AUTO_MODE: 'dry' }, w.fetchFn, now));
+    return { r, lg: w.calls.filter((c) => !c.url.includes('jinan-schedule')).length };
+  };
+  for (const hm of ['05:30', '08:00', '08:55', '09:10', '09:20', '10:10', '10:20', '11:20', '11:40', '12:00', '13:00']) {
+    const x = await run(hm); assert.equal(x.lg, 0, hm + ' 에는 LG 호출 없어야 함'); assert.ok(x.r.skipped, hm);
+  }
+  for (const hm of ['09:00', '09:30', '10:00', '10:30', '11:10']) {
+    const x = await run(hm); assert.ok(x.lg > 0, hm + ' 에는 LG 호출'); assert.ok(!x.r.skipped, hm);
+  }
 });
 
 await t('비밀값이 빠지면 어느 것이 없는지 알려준다', async () => {
