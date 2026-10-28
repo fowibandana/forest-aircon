@@ -174,7 +174,9 @@ export default {
 
     if (!env.APP_PASSWORD || !env.THINQ_PAT) {
       const missing = ['APP_PASSWORD', 'THINQ_PAT'].filter((k) => !env[k]);
-      return json({ ok: false, error: `서버 설정이 끝나지 않았습니다(없는 비밀값: ${missing.join(', ')})` }, 503);
+      // 값은 절대 내보내지 않고 "이름"만 보여준다(이름에 공백·오타가 섞였는지 확인용)
+      const seen = Object.keys(env).filter((k) => k !== 'ASSETS').map((k) => JSON.stringify(k)).join(', ') || '없음';
+      return json({ ok: false, error: `서버 설정이 끝나지 않았습니다(없는 비밀값: ${missing.join(', ')} / 서버가 받은 항목 이름: ${seen})` }, 503);
     }
     if (!passwordOk(request.headers.get('x-app-password') || '', env.APP_PASSWORD)) {
       return json({ ok: false, error: '비밀번호가 맞지 않습니다' }, 401);

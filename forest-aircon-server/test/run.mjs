@@ -275,7 +275,10 @@ await t('비밀값이 빠지면 어느 것이 없는지 알려준다', async () 
   let r = await call({ ASSETS: ENV.ASSETS });
   assert.equal(r.s, 503); assert.match(r.j.error, /APP_PASSWORD, THINQ_PAT/);
   r = await call({ ASSETS: ENV.ASSETS, APP_PASSWORD: 'pw' });
-  assert.match(r.j.error, /THINQ_PAT/); assert.ok(!/APP_PASSWORD/.test(r.j.error.split('없는 비밀값')[1]));
+  const miss = r.j.error.split('없는 비밀값:')[1].split(' / ')[0];
+  assert.match(miss, /THINQ_PAT/); assert.ok(!/APP_PASSWORD/.test(miss));
+  assert.match(r.j.error, /서버가 받은 항목 이름: "APP_PASSWORD"/);
+  assert.ok(!/ASSETS|pw'/.test(r.j.error.split('서버가 받은 항목 이름:')[1]));   // 값·내부 항목은 노출 안 함
 });
 
 console.log(process.exitCode ? '\n실패 있음' : `\n전부 통과 (${pass}개)`);
