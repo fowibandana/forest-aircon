@@ -1,4 +1,5 @@
 import { spanOf } from './rooms.js';
+import { timedMoment } from './rules.js';
 
 // 한 방의 자동 제어 판단(순수 함수 — 실제 호출은 하지 않는다).
 // roomItems: 그 방의 오늘 일정 / allItems: 오늘 전체 일정 / devices: [{id, power, mode, cur, target}]
@@ -74,5 +75,7 @@ export function shouldCheckLG({ by, allItems, nowMin, settingsOf, graceMin }) {
     if (nowMin >= first - Math.max(AUTO_WINDOW_MIN, st.pre) && nowMin < last + graceMin + AUTO_INTERVAL_MIN) inWindow = true;
   }
   if (inWindow && onGrid) return { run: true, why: '점검 구간 정기 확인' };
+  const tm = timedMoment(nowMin);   // 시각 규칙(09·10·20·21시, 비품실 매시 확인)
+  if (tm) return { run: true, why: tm, supplyOnly: tm.startsWith('비품실') };
   return { run: false, why: inWindow ? '점검 구간 — 다음 정기 확인까지 대기' : '점검 구간 아님' };
 }

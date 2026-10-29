@@ -216,6 +216,10 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 
 .ver{margin:18px 0 6px;text-align:center;font-size:11.5px;color:var(--mute)}
 .others{margin-top:6px;font-size:13px;color:var(--mute);line-height:1.5}
+.alerts{margin:10px 0 0}
+.alerts .al{display:flex;gap:10px;align-items:center;background:color-mix(in srgb,var(--bad) 12%,var(--card));border:1.5px solid var(--bad);color:var(--text);border-radius:12px;padding:10px 12px;font-size:14.5px;font-weight:600;margin-bottom:6px}
+.alerts .al b{color:var(--bad)}.alerts .al span{flex:1}.alerts .al button{border:1px solid var(--bad);background:var(--card);color:var(--bad);border-radius:8px;padding:6px 10px;font-weight:700;font-size:13px}
+.alerts .none{font-size:12.5px;color:var(--muted);padding:2px 4px}
 .err{background:var(--card);border:1px solid var(--bad);color:var(--bad);border-radius:12px;padding:12px;font-size:13.5px;margin:12px 0}
 
 /* 시트·토스트 */
@@ -244,6 +248,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 </section>
 
 <main id="app" class="hide">
+  <div id="alerts" class="alerts"></div>
   <header>
     <div class="top">
       <div>
@@ -298,7 +303,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.6.0';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.7.0';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -530,7 +535,7 @@ function planHtml(F) {
       const cap = (d, px, py) => `<text class="t3 cap" x="${f1(px)}" y="${f1(py + 36)}">${esc(capT(d))}</text>`;
       if (key === 'b1lobby' && n >= 2) {
         // 로비: 글자는 가운데, 에어컨은 위·아래 두 구역에 따로(글자를 침범하지 않게)
-        const yy = [y + h * .2, y + h * .8];
+        const yy = [Math.max(y + 36, cy - 100), Math.min(cy + 80, y + h - 48)];
         devs.forEach((d, i) => { const py = yy[Math.min(i, 1)]; txt += acSvg(cx, py, acClass(d), d.unsupported || !d.id ? '' : d.id) + cap(d, cx, py); });
       } else {
         const showCap = gap >= 62 && n > 1 && !r.noapi, py = Math.min(ay, y + h - (showCap ? 48 : 32));
@@ -602,7 +607,18 @@ function autoBoxHtml(r) {
   return `<div class="autoBox"><div class="tx">${line}<span class="std">${std}${r.customSettings ? '<span class="tagc">이 방 설정</span>' : ''}</span></div><button class="setBtn">자동 설정</button></div>`;
 }
 
+function renderAlerts() {
+  const a = (DATA && DATA.alerts) || [];
+  $('alerts').innerHTML = a.length
+    ? a.map((x) => `<div class="al"><span>🔔 <b>난방 확인 필요!</b> ${esc(x.name)} ${x.temp}° — ${esc(x.start)} 프로그램 있음</span><button data-ack="${esc(x.id)}">확인</button></div>`).join('') + (a.length > 1 ? '<div style="text-align:right"><button class="ghost" id="ackAll" style="border:0;background:none;color:var(--muted);font-size:12.5px;text-decoration:underline">모두 확인</button></div>' : '')
+    : '<div class="none">🔔 알림 없음</div>';
+  $('alerts').onclick = async (e) => {
+    const b = e.target.closest('[data-ack],#ackAll'); if (!b) return;
+    try { await api('/api/alerts/ack', { method: 'POST', body: JSON.stringify(b.id === 'ackAll' ? { all: true } : { ids: [b.dataset.ack] }) }); DATA.alerts = b.id === 'ackAll' ? [] : DATA.alerts.filter((x) => x.id !== b.dataset.ack); renderAlerts(); } catch (er) { alert(er.message); }
+  };
+}
 function render() {
+  renderAlerts();
   const d = DATA;
   const ageSec = d.stale && d.stale.ageSec != null ? d.stale.ageSec : d.cachedSec || 0;
   $('sub').textContent = `${d.date} ${hhmm(d.nowMin)} 기준` + (ageSec >= 60 ? ` · 에어컨 상태 ${ageText(ageSec * 1000)}` : '');

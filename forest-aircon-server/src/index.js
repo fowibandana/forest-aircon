@@ -3,6 +3,7 @@ import { PLACES, FLOOR_ORDER, placeOfDevice } from './rooms.js';
 import { fetchSchedule, itemsByRoom, summarizeRoom } from './schedule.js';
 import { Thinq } from './thinq.js';
 import { decideRoom, shouldCheckLG } from './auto.js';
+import { timedActions, coldAlerts, roomsNeeded, hhmm } from './rules.js';
 import { VERSION } from './version.js';
 import { cleanSettings, loadSettings, settingsOf, cfgOf, DEFAULTS } from './settings.js';
 
@@ -150,6 +151,7 @@ async function statusResponse(env, fresh = false) {
     nowMin: snap.sched.nowMin,
     floors,
     others: snap.devices.filter((d) => !d.room).map(pub),   // 어느 방인지 모르는 에어컨(표에 추가 필요)
+    alerts: (await loadAlerts(env)).filter((a) => a.date === snap.sched.date && !a.ack).map(alertView),
     auto: { mode: env.AUTO_MODE === 'live' ? 'live' : 'dry', heat: heatOn(env), paused: await isPaused(env), canPause: !!env.STATE, canSave: !!env.STATE, defaults: DEFAULTS },
   };
 }
@@ -214,33 +216,61 @@ async function applyOne(thinq, id, a) {
   if (typeof a.temp === 'number' && Number.isFinite(a.temp)) await thinq.setTemp(id, a.temp, a.mode);
 }
 
+// ── 알림(KV 'alerts'): 오늘 날짜 것만 보여 주고, «확인»하면 사라진다 ──
+const ALERT_KEY = 'alerts';
+export async function loadAlerts(env) {
+  if (!env.STATE) return [];
+  try { const a = JSON.parse(await env.STATE.get(ALERT_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+async function saveAlerts(env, list) { if (env.STATE) { try { await env.STATE.put(ALERT_KEY, JSON.stringify(list.slice(-40))); } catch {} } }
+export async function addAlerts(env, news) {
+  if (!news.length) return;
+  const cur = await loadAlerts(env);
+  const have = new Set(cur.map((a) => a.id));
+  const add = news.filter((a) => !have.has(a.id)).map((a) => ({ ...a, ack: false }));
+  if (add.length) await saveAlerts(env, [...cur, ...add]);
+}
+const alertView = (a) => ({ id: a.id, room: a.room, name: (PLACES[a.room] || {}).name || a.room, temp: a.temp, start: hhmm(a.start), at: a.at, ack: !!a.ack,
+  msg: `난방 확인 필요! ${(PLACES[a.room] || {}).name || a.room} ${a.temp}° — ${hhmm(a.start)} 프로그램 있음` });
+
 // 5분마다 도는 자동 제어
-export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched = null) {
+export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched = null, opts = {}) {
   const hour = new Date(now.getTime() + 9 * 3600 * 1000).getUTCHours();
   if (hour < CONFIG.ACTIVE_FROM_HOUR || hour >= CONFIG.ACTIVE_TO_HOUR) return { skipped: 'time' };
   if (await isPaused(env)) { console.log('[auto] 일시중지 중'); return { skipped: 'paused' }; }
 
   const sched = knownSched || await fetchSchedule(fetchFn);
   const by = itemsByRoom(sched.items);
-  const snap = await snapshot(env, fetchFn, (k) => (by[k] || []).length > 0, sched);
-  const { decisions } = evaluate(snap.sched, snap.devices, await loadSettings(env), heatOn(env));
+  const need = roomsNeeded(sched.nowMin, Object.keys(PLACES));
+  const snap = await snapshot(env, fetchFn, (k) => need.has(k) || (!opts.supplyOnly && (by[k] || []).length > 0), sched);
+  const smap = await loadSettings(env);
+  const { decisions } = evaluate(snap.sched, snap.devices, smap, heatOn(env));
+  const enabledOf = (k) => settingsOf(smap, k).settings.enabled;
   const live = env.AUTO_MODE === 'live';
+
+  // 추운 방 알림(난방은 중앙제어라 사람이 확인) — 일시중지 중이어도 알림은 보내고 싶지만 여기서는 자동 제어와 같이 돈다
+  const cold = coldAlerts({ nowMin: sched.nowMin, decisions, by, allItems: sched.items, enabledOf, date: sched.date });
+  if (cold.length) { await addAlerts(env, cold); console.log('[alert]', JSON.stringify(cold)); }
+
+  // 조치 모으기: 일정 기반 판단 + 시각 규칙(같은 에어컨이면 시각 규칙이 우선). 비품실은 어떤 경우에도 끄지 않는다.
+  const todo = new Map();
+  for (const [key, d] of Object.entries(decisions)) for (const a of d.actions) todo.set(a.deviceId, { ...a, room: key, reason: d.reason });
+  for (const a of timedActions({ nowMin: sched.nowMin, devices: snap.devices, by, allItems: sched.items, enabledOf })) todo.set(a.deviceId, { ...a, reason: a.why });
+  for (const [id, a] of todo) if (a.room === 'supply' && a.power === 'OFF') todo.delete(id);
+
   const log = [];
-  for (const [key, d] of Object.entries(decisions)) {
-    if (!d.actions.length) continue;
-    for (const a of d.actions) {
-      const line = { room: key, device: a.deviceId.slice(0, 8), do: a.why, reason: d.reason, live };
-      if (live) {
-        try { await applyOne(snap.thinq, a.deviceId, a); line.result = 'ok'; }
-        catch (e) { line.result = 'fail: ' + e.message; }
-        await sleep(300);
-      }
-      log.push(line);
-      console.log('[auto]', JSON.stringify(line));
+  for (const a of todo.values()) {
+    const line = { room: a.room, device: a.deviceId.slice(0, 8), do: a.why, reason: a.reason, live };
+    if (live) {
+      try { await applyOne(snap.thinq, a.deviceId, a); line.result = 'ok'; }
+      catch (e) { line.result = 'fail: ' + e.message; }
+      await sleep(300);
     }
+    log.push(line);
+    console.log('[auto]', JSON.stringify(line));
   }
   if (!log.length) console.log('[auto] 조치 없음', JSON.stringify(Object.fromEntries(Object.entries(decisions).filter(([, d]) => d.state !== 'none').map(([k, d]) => [k, d.reason]))));
-  return { live, log };
+  return { live, log, alerts: cold };
 }
 
 // 5분마다 깨어나지만, LG 는 «필요한 때»에만 부른다(일정 시작 60분 전부터, 30분마다 + 중요한 순간)
@@ -253,7 +283,7 @@ export async function tickAuto(env, fetchFn = fetch, now = new Date()) {
   const g = shouldCheckLG({ by, allItems: sched.items, nowMin: sched.nowMin, settingsOf: (k) => settingsOf(smap, k).settings, graceMin: CONFIG.POST_GRACE_MIN });
   if (!g.run) { console.log('[auto] LG 호출 안 함 —', g.why); return { skipped: 'gate', why: g.why }; }
   console.log('[auto] LG 확인 —', g.why);
-  return runAuto(env, fetchFn, now, sched);
+  return runAuto(env, fetchFn, now, sched, { supplyOnly: !!g.supplyOnly });
 }
 
 export default {
@@ -294,6 +324,14 @@ export default {
         await env.STATE.put('settings', JSON.stringify(map));
         const r = settingsOf(map, key);
         return json({ ok: true, room: key, settings: r.settings, customSettings: r.custom });
+      }
+      if (url.pathname === '/api/alerts/ack' && request.method === 'POST') {
+        const b = await request.json();
+        const ids = b.all ? null : new Set((Array.isArray(b.ids) ? b.ids : []).map(String));
+        const list = await loadAlerts(env);
+        for (const a of list) if (!ids || ids.has(a.id)) a.ack = true;
+        await saveAlerts(env, list);
+        return json({ ok: true });
       }
       if (url.pathname === '/api/pause' && request.method === 'POST') {
         if (!env.STATE) return json({ ok: false, error: 'KV(STATE)가 연결되지 않았습니다' }, 400);

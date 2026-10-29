@@ -26,7 +26,7 @@ function makeWorld({ nowMin = 9 * 60, items = [], temps = {}, power = {}, mode =
   for (const d of devices) {
     const a = d.alias.replace(/^에어컨\(|\)$/g, '');
     state[d.deviceId] = {
-      operation: { airConOperationMode: power[a] || 'POWER_OFF' },
+      operation: { airConOperationMode: power[a] || (/비품실/.test(a) ? 'POWER_ON' : 'POWER_OFF') },
       airConJobMode: { currentJobMode: mode[a] || 'COOL' },
       temperature: { currentTemperature: temps[ALIASES[a]] ?? 24, targetTemperature: 24, unit: 'C' },
     };
@@ -153,7 +153,7 @@ await t('자동(live): 203호 20분 전 + 더움 → 두 대 켜고 냉방·26�
   // 일정 없는 방(2F 다른 방, 후순위)은 건드리지 않음
   const touched = new Set(ctl.map((c) => c.url.match(/devices\/(\w+)\//)[1]));
   assert.equal(touched.size, 2);
-  assert.equal(w.calls.filter((c) => /state$/.test(c.url)).length, 2, '일정 있는 방(203호 2대)만 상태를 읽어야 함');
+  assert.equal(w.calls.filter((c) => /state$/.test(c.url)).length, 3, '일정 있는 방(203호 2대) + 비품실 1대만 상태를 읽어야 함');
   assert.equal(w.calls.filter((c) => /jinan-schedule/.test(c.url)).length, 1, '일정은 한 번만 읽어야 함');
 });
 await t('자동(dry): 시험 모드는 제어 호출이 없다', async () => {
@@ -319,12 +319,70 @@ await t('자동 점검은 필요한 때만 LG를 부른다(시작 60분 전부�
     const r = await withWorld(w, () => tickAuto({ ...ENV, AUTO_MODE: 'dry' }, w.fetchFn, now));
     return { r, lg: w.calls.filter((c) => !c.url.includes('jinan-schedule')).length };
   };
-  for (const hm of ['05:30', '08:00', '08:55', '09:10', '09:20', '10:10', '10:20', '11:20', '11:40', '12:00', '13:00']) {
+  for (const hm of ['05:30', '08:10', '08:55', '09:10', '09:20', '10:10', '10:20', '11:20', '11:40', '12:10', '13:10']) {
     const x = await run(hm); assert.equal(x.lg, 0, hm + ' 에는 LG 호출 없어야 함'); assert.ok(x.r.skipped, hm);
   }
   for (const hm of ['09:00', '09:30', '10:00', '10:30', '11:10']) {
     const x = await run(hm); assert.ok(x.lg > 0, hm + ' 에는 LG 호출'); assert.ok(!x.r.skipped, hm);
   }
+});
+
+await t('비품실 켜짐 확인은 매시 정각에 비품실만 읽고, 꺼져 있으면 켠다', async () => {
+  const w = makeWorld({ nowMin: 8 * 60, items: [item('스마트치유실 B101호', '10:00', '11:00')], power: { '산림치유센터 비품실': 'POWER_OFF' } });
+  const now = new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + 8 * 60 * 60e3);
+  const r = await withWorld(w, () => tickAuto({ ...ENV, AUTO_MODE: 'live' }, w.fetchFn, now));
+  const states = w.calls.filter((c) => /\/state$/.test(c.url)); assert.equal(states.length, 1, '비품실 1대만 읽음');
+  const ctl = w.calls.filter((c) => /\/control$/.test(c.url)); assert.equal(ctl.length, 1);
+  assert.equal(ctl[0].body.operation.airConOperationMode, 'POWER_ON'); assert.ok(r.log.length === 1);
+});
+
+await t('10시 체험·실감실 켜기 / 20시 끄기', async () => {
+  const mk = async (hm, power) => {
+    const [h, m] = hm.split(':').map(Number); const w = makeWorld({ nowMin: h * 60 + m, items: [], power });
+    const now = new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + (h * 60 + m) * 60e3);
+    const r = await withWorld(w, () => tickAuto({ ...ENV, AUTO_MODE: 'live' }, w.fetchFn, now));
+    return { w, r };
+  };
+  const on = await mk('10:00', { '실감실': 'POWER_OFF', '산림치유센터 비품실': 'POWER_ON' });
+  assert.ok(on.r.log.some((l) => l.room === 'media' && /켜기/.test(l.do)), '10:00 켜짐');
+  const off = await mk('20:00', { '실감실': 'POWER_ON', '산림치유센터 비품실': 'POWER_ON' });
+  assert.ok(off.r.log.some((l) => l.room === 'media' && /끄기/.test(l.do)), '20:00 꺼짐');
+  assert.ok(!off.r.log.some((l) => l.room === 'supply'), '비품실은 건드리지 않음');
+});
+
+await t('21시: 비품실과 남은 일정이 있는 방을 빼고 전부 끈다(요청당 12대 제한, 비품실은 절대 끄지 않음)', async () => {
+  const power = {}; for (const a of Object.keys(ALIASES)) power[a] = 'POWER_ON';
+  const items = [item('스마트치유실 B101호', '21:30', '22:30')];
+  const w = makeWorld({ nowMin: 21 * 60, items, power });
+  const now = new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + 21 * 60 * 60e3);
+  const r = await withWorld(w, () => tickAuto({ ...ENV, AUTO_MODE: 'live' }, w.fetchFn, now));
+  const offIds = w.calls.filter((c) => /\/control$/.test(c.url) && c.body.operation && c.body.operation.airConOperationMode === 'POWER_OFF').map((c) => c.url);
+  const aliasOf = (u) => { const id = /devices\/(\w+)\//.exec(u)[1]; return w.devices.find((d) => d.deviceId === id).alias; };
+  const others = offIds.filter((u) => !/B101/.test(aliasOf(u)));   // B101 은 일정 기반 판단(충분히 시원함)으로 꺼질 수 있다
+  assert.equal(others.length, 12, '한 번에 12대까지');
+  for (const u of offIds) assert.ok(!/비품실/.test(aliasOf(u)), '비품실은 끄면 안 됨');
+  assert.ok(!r.log.some((l) => l.room === 'supply'));
+});
+
+await t('09시: 오늘 일정이 있는 방이 너무 추우면 «난방 확인 필요» 알림을 저장하고, 상태 응답에 담고, 확인하면 사라진다', async () => {
+  const kv = { m: {}, async get(k) { return this.m[k] ?? null; }, async put(k, v) { this.m[k] = v; } };
+  const env = { ...ENV, STATE: kv };
+  const w = makeWorld({ nowMin: 9 * 60, items: [item('스마트치유실 B101호', '10:30', '11:30')], temps: { b101: 16 } });
+  const now = new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + 9 * 60 * 60e3);
+  const r = await withWorld(w, () => tickAuto(env, w.fetchFn, now));
+  assert.equal(r.alerts.length, 1); assert.equal(r.alerts[0].room, 'b101');
+  const call = (path, body) => worker.fetch(new Request('https://x' + path, { method: body ? 'POST' : 'GET', headers: { 'x-app-password': 'pw' }, body: body ? JSON.stringify(body) : undefined }), env);
+  const real = globalThis.fetch; globalThis.fetch = w.fetchFn;
+  try {
+    const j = await (await call('/api/status')).json();
+    assert.equal(j.alerts.length, 1); assert.match(j.alerts[0].msg, /난방 확인 필요/); assert.match(j.alerts[0].msg, /10:30 프로그램 있음/);
+    await call('/api/alerts/ack', { all: true });
+    const j2 = await (await call('/api/status')).json(); assert.equal(j2.alerts.length, 0);
+  } finally { globalThis.fetch = real; }
+  // 따뜻하면 알림 없음
+  const w2 = makeWorld({ nowMin: 9 * 60, items: [item('스마트치유실 B101호', '10:30', '11:30')], temps: { b101: 22 } });
+  const r2 = await withWorld(w2, () => tickAuto({ ...ENV, STATE: { m: {}, async get() { return null; }, async put() {} } }, w2.fetchFn, now));
+  assert.equal(r2.alerts.length, 0);
 });
 
 await t('LG가 막혀도 로그인(ping)은 되고, 저장값이 없으면 에어컨 없이 방 구성만 보여준다', async () => {
