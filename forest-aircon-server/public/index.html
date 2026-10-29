@@ -62,8 +62,18 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .floorBar{display:flex;align-items:center;justify-content:space-between;margin:14px 2px 8px;font-size:13.5px;color:var(--mute)}
 .fb{display:flex;gap:6px}
 .rAge{font-size:11.5px;color:var(--mute);margin-top:2px}
-.rRef{margin-left:auto;align-self:center;padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;color:var(--ink);white-space:nowrap}
-.rRef.busyb,.floorBar button.busyb{opacity:.5}
+.rTools{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.rTools button{display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13.5px;font-weight:600;color:var(--ink);white-space:nowrap}
+.rTools .rAge{margin-left:auto;margin-top:0}
+.ico{flex:none;display:block}
+.rTools button.busyb,.floorBar button.busyb{opacity:.5}
+.rTools button.busyb .ico{animation:sp 1s linear infinite}
+.ic .ico{margin:auto}
+.mbtns.noheat button[data-a="temp"]{grid-column:1/-1}
+.infoRows{display:flex;flex-direction:column;gap:9px;margin:6px 0 14px;font-size:14px;line-height:1.5}
+.infoRows .k{display:block;font-size:11.5px;font-weight:700;color:var(--mute);letter-spacing:.02em;margin-bottom:1px}
+.infoRows b{font-weight:700}
+.infoRows .note{padding:9px 11px;border-radius:12px;background:var(--chip);font-size:12.5px;color:var(--mute)}
 .floorBar button{padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-size:13px;color:var(--ink)}
 
 /* 평면도 */
@@ -240,7 +250,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
         <h1>산림치유센터 냉난방관리</h1>
         <div class="sub" id="sub">불러오는 중…</div>
       </div>
-      <button class="ic" id="refresh" aria-label="새로고침">⟳</button>
+      <button class="ic" id="refresh" aria-label="전체 새로고침"><svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
     </div>
     <div class="autoBar" id="autoBar"></div>
     <nav class="tabs" id="tabs"></nav>
@@ -269,6 +279,11 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   </div>
   <button class="close" id="dvX">닫기</button>
 </dialog>
+<dialog id="info">
+  <h3 id="infoT"></h3>
+  <div class="infoRows" id="infoB"></div>
+  <div class="row2"><button id="infoSet">자동 설정</button><button class="go" id="infoX">닫기</button></div>
+</dialog>
 <dialog id="set">
   <h3 id="setT"></h3>
   <p id="setP">이 방에만 적용되는 기준입니다. 다른 방은 영향을 받지 않아요.</p>
@@ -283,9 +298,10 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.5.1';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.6.0';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
+const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
 
 const store = {
   get() { try { return localStorage.getItem('pw') || ''; } catch { return ''; } },
@@ -555,6 +571,7 @@ function progHtml(s, scheduled) {
   if (!parts.length) parts.push(`<div class="none">${s.total ? '오늘 일정이 모두 끝났습니다' : '오늘 일정 없음'}</div>`);
   return '<div class="prog">' + parts.join('') + '</div>';
 }
+const heatOn = () => !!(DATA && DATA.auto && DATA.auto.heat);   // 난방 버튼은 서버가 난방을 허용할 때만 보인다(현재는 중앙제어로 막힘)
 const ageText = (ms) => { const m = Math.round(ms / 60000); return ms < 60000 ? '방금 확인' : m < 60 ? m + '분 전 확인' : Math.floor(m / 60) + '시간 전 확인'; };
 const roomAge = (key) => ageText(rTs[key] ? Date.now() - rTs[key] : Date.now() - loadedAt + ((DATA && (DATA.stale && DATA.stale.ageSec != null ? DATA.stale.ageSec : DATA.cachedSec)) || 0) * 1000);
 const STATE_TXT = { active: '진행 중', soon: '곧 시작', done: '종료', gap: '대기', idle: '', none: '' };
@@ -620,12 +637,12 @@ function render() {
       body = `<div class="tiles">${r.devices.map((d) => tileHtml(d)).join('')}</div><div class="noac">이 에어컨은 LG 서버가 상태 확인·제어를 지원하지 않아, 이 화면에서는 조작할 수 없습니다. ThinQ 앱이나 리모컨으로 조작해 주세요. (일정은 그대로 표시됩니다)</div>`;
     } else if (r.devices.length) {
       body = `<div class="tiles">${rdev.map((d) => tileHtml(d)).join('')}</div>
-        <div class="roomAct" data-room="${r.key}"><button class="cool" data-a="cool">방 전체 냉방</button><button class="heat" data-a="heat">방 전체 난방</button><button data-a="off">방 전체 끄기</button></div>${autoBoxHtml(r)}`;
+        <div class="roomAct" data-room="${r.key}"><button class="cool" data-a="cool">방 전체 냉방</button>${heatOn() ? '<button class="heat" data-a="heat">방 전체 난방</button>' : ''}<button data-a="off">방 전체 끄기</button></div>`;
     } else body = '<div class="noac">등록된 에어컨이 없습니다</div>';
     const rids = r.devices.filter((x) => !x.unsupported).map((x) => x.id);
-    return `<article class="room ${r.noapi ? 'na' : ''}" id="room-${r.key}"><div class="rHead"><div><div class="rName">${esc(r.name)}</div>${rids.length ? `<div class="rAge">${roomAge(r.key)}</div>` : ''}</div>
-      ${rids.length ? `<button class="rRef" data-room="${r.key}" aria-label="${esc(r.short)} 새로고침">⟳ 새로고침</button>` : ''}
+    return `<article class="room ${r.noapi ? 'na' : ''}" id="room-${r.key}"><div class="rHead"><div class="rName">${esc(r.name)}</div>
       <div class="rTemp">${avg == null ? '–' : (Math.round(avg * 10) / 10) + '°'}<small>방 온도</small></div></div>
+      <div class="rTools">${rids.length ? `<button class="rRef" aria-label="${esc(r.short)} 새로고침">${ICON_R}<span>새로고침</span></button>` : ''}<button class="rInfo" aria-label="${esc(r.short)} 정보 확인">${ICON_I}<span>정보 확인</span></button>${rids.length ? `<span class="rAge">${roomAge(r.key)}</span>` : ''}</div>
       ${progHtml(r.schedule, r.scheduled)}${body}</article>`;
   }).join('');
   document.querySelectorAll('.room').forEach((el) => {
@@ -633,7 +650,7 @@ function render() {
     el.querySelectorAll('.roomAct button').forEach((b) => b.onclick = () => onAct(room, b.dataset.a));
     const rb = el.querySelector('.rRef'); if (rb) rb.onclick = () => refreshIds(room.devices.filter((x) => !x.unsupported).map((x) => x.id), rb, room.key);
     el.querySelectorAll('.tile[data-id]').forEach((t) => t.onclick = () => openDev(room, room.devices.find((d) => d.id === t.dataset.id)));
-    const sb = el.querySelector('.setBtn'); if (sb) sb.onclick = () => openSettings(room);
+    const ib = el.querySelector('.rInfo'); if (ib) ib.onclick = () => openInfo(room);
   });
 
   $('ver').textContent = `화면 v${APP_VERSION} · 서버 v${d.version || '?'}` + (d.version && d.version !== APP_VERSION ? ' — 버전이 다릅니다. 앱을 닫았다 다시 열어 보세요' : '');
@@ -669,6 +686,7 @@ async function onAct(room, a) {
 /* 에어컨 한 대 제어 창 */
 function openDev(room, d) {
   if (!d) return;
+  const heatBtn = $('dev').querySelector('[data-a="heat"]'); heatBtn.style.display = heatOn() ? '' : 'none'; $('dev').querySelector('.mbtns').classList.toggle('noheat', !heatOn());
   const st = room.settings || {};
   $('devT').textContent = `${room.short} · ${posName(d.alias)}`;
   $('devS').textContent = !d.ok ? '상태를 읽지 못했습니다. 그래도 제어는 시도할 수 있어요.' : d.power === 'ON'
@@ -689,17 +707,43 @@ function openDev(room, d) {
   dlg.showModal();
 }
 
+/* 방 «정보 확인» 창 — 자동 제어 기준과 지금 판단을 보여준다 */
+function openInfo(room) {
+  const st = room.settings || {}, a = room.auto || { state: 'none', reason: '', actions: [] };
+  const rows = [];
+  if (!room.scheduled) rows.push(['자동 제어', '이 방은 일정과 연동하지 않습니다. 직접 눌러서만 제어합니다.']);
+  else if (room.noapi) rows.push(['자동 제어', '이 방의 에어컨은 LG 서버가 제어를 지원하지 않아 자동·수동 모두 앱에서만 조작할 수 있습니다.']);
+  else if (!st.enabled) rows.push(['자동 제어', '이 방은 자동 제어를 껐습니다.']);
+  else {
+    const stt = STATE_TXT[a.state];
+    rows.push(['지금 판단' + (stt ? ' (' + stt + ')' : ''), `<b>${esc(a.reason || '–')}</b>${a.actions && a.actions.length ? ' → ' + esc(sumActions(a.actions)) : ''}`]);
+    rows.push(['냉방 켜기', `방 온도 <b>${st.hot_on}° 이상</b> → <b>${st.cool_target}°</b>로 냉방`]);
+    rows.push(['냉방 끄기', `냉방 중 방 온도 <b>${st.cool_off}° 이하</b>`]);
+    rows.push(['보는 시간', `프로그램 시작 <b>${st.pre}분 전</b>부터 끝날 때까지, 끝나고 10분 뒤 켜진 에어컨을 끔`]);
+    if (room.customSettings) rows.push(['', '<span class="note">이 방만 따로 바꾼 기준입니다.</span>']);
+  }
+  if (!heatOn()) rows.push(['난방', '현재 중앙제어로 막혀 있어 사용하지 않습니다(자동·수동 모두 없음).']);
+  rows.push(['상태 확인', room.devices.some((d) => !d.unsupported) ? roomAge(room.key) : '–']);
+  $('infoT').textContent = `${room.short} 정보`;
+  $('infoB').innerHTML = rows.map(([k, v]) => `<div>${k ? `<span class="k">${k}</span>` : ''}${v}</div>`).join('');
+  const can = room.scheduled && !room.noapi;
+  const dlg = $('info');
+  $('infoSet').style.display = can ? '' : 'none';
+  $('infoSet').onclick = () => { dlg.close(); openSettings(room); };
+  $('infoX').onclick = () => dlg.close();
+  dlg.showModal();
+}
+
 /* 방별 자동 설정 창 */
 const SROWS = [
   ['pre', '시작 전 확인', '프로그램 시작 몇 분 전부터 보는지', '분', 5, 0, 120],
-  ['hot_on', '냉방 시작 온도', '방 온도가 이 이상이면 냉방', '°', 1, 20, 35],
-  ['cool_target', '냉방 설정 온도', '이 온도로 켜고, 방이 여기까지 내려오면 끔', '°', 1, 16, 30],
-  ['cold_on', '난방 시작 온도', '방 온도가 이 이하면 난방', '°', 1, 5, 25],
-  ['heat_target', '난방 설정 온도', '이 온도로 켜고, 방이 여기까지 오르면 끔', '°', 1, 16, 30],
+  ['hot_on', '냉방 켜는 온도', '방 온도가 이 이상이면 냉방을 켬', '°', 1, 20, 35],
+  ['cool_target', '냉방 설정 온도', '켤 때 에어컨에 맞추는 온도', '°', 1, 16, 30],
+  ['cool_off', '냉방 끄는 온도', '냉방 중 방 온도가 이 이하로 내려오면 끔', '°', 1, 16, 30],
 ];
 function openSettings(room) {
   const canSave = !!(DATA.auto && DATA.auto.canSave);
-  const defs = (DATA.auto && DATA.auto.defaults) || { enabled: true, pre: 30, hot_on: 26, cool_target: 24, cold_on: 18, heat_target: 22 };
+  const defs = (DATA.auto && DATA.auto.defaults) || { enabled: true, pre: 30, hot_on: 28, cool_target: 26, cool_off: 24 };
   const val = { ...room.settings };
   $('setT').textContent = `${room.short} 자동 설정`;
   $('sRows').innerHTML = SROWS.map(([k, l, h, u]) => `<div class="srow"><div class="sl">${l}<small>${h}</small></div><div class="sv"><button data-k="${k}" data-d="-1">−</button><output id="o-${k}"></output><button data-k="${k}" data-d="1">+</button></div></div>`).join('');
@@ -707,7 +751,7 @@ function openSettings(room) {
     $('sEn').checked = val.enabled;
     SROWS.forEach(([k,, , u]) => { $('o-' + k).textContent = val[k] + u; });
     $('sSum').innerHTML = val.enabled
-      ? `프로그램 시작 <b>${val.pre}분 전</b>부터 끝날 때까지 방 온도를 봅니다.<br>방 온도 <b>${val.hot_on}° 이상</b>이면 냉방 <b>${val.cool_target}°</b>로 켜고, ${val.cool_target}°까지 내려오면 끕니다.<br>방 온도 <b>${val.cold_on}° 이하</b>이면 난방 <b>${val.heat_target}°</b>로 켜고, ${val.heat_target}°까지 오르면 끕니다.<br>모든 일정이 끝나고 10분 뒤에 꺼집니다.`
+      ? `프로그램 시작 <b>${val.pre}분 전</b>부터 끝날 때까지 방 온도를 봅니다.<br>방 온도 <b>${val.hot_on}° 이상</b>이면 냉방 <b>${val.cool_target}°</b>로 켭니다.<br>냉방 중 방 온도가 <b>${val.cool_off}° 이하</b>로 내려오면 끕니다.<br>모든 일정이 끝나고 10분 뒤에 켜진 에어컨을 끕니다. 난방은 자동으로 하지 않습니다.`
       : '이 방은 자동으로 켜거나 끄지 않습니다. 직접 눌러서만 제어됩니다.';
     $('sRows').style.opacity = val.enabled ? 1 : .45;
   };

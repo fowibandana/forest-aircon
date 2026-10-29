@@ -6,8 +6,8 @@ export const CONFIG = {
   PRE_MIN: 30,         // 프로그램 시작 몇 분 전부터 방 온도를 보고 제어할지
   POST_GRACE_MIN: 10,  // 모든 일정이 끝나고 몇 분 뒤에 끌지
 
-  HOT_ON: 26,          // 방 온도가 이 이상이면 냉방을 켠다
-  COOL_TARGET: 24,     // 냉방 설정 온도
+  HOT_ON: 28,          // 방 온도가 이 이상이면 냉방을 켠다
+  COOL_TARGET: 26,     // 냉방 설정 온도
   COOL_OFF: 24,        // 냉방 중 방 온도가 이 이하로 내려오면 끈다
 
   COLD_ON: 18,         // 방 온도가 이 이하면 난방을 켠다

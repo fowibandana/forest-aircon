@@ -30,7 +30,7 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
       }
       return { state, temp, actions, reason: `방 온도 ${temp}° ≥ ${cfg.HOT_ON}° → 냉방(${cfg.COOL_TARGET}°)` };
     }
-    if (temp <= cfg.COLD_ON) {
+    if (cfg.HEAT_ENABLED && temp <= cfg.COLD_ON) {
       for (const d of usable) {
         if (!(d.power === 'ON' && d.mode === 'HEAT')) {
           actions.push({ deviceId: d.id, power: 'ON', mode: 'HEAT', temp: cfg.HEAT_TARGET, why: '난방 켜기' });
@@ -40,7 +40,7 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
     }
     for (const d of usable) {
       if (d.power === 'ON' && d.mode === 'COOL' && temp <= cfg.COOL_OFF) actions.push({ deviceId: d.id, power: 'OFF', why: '충분히 시원해 끄기' });
-      if (d.power === 'ON' && d.mode === 'HEAT' && temp >= cfg.HEAT_OFF) actions.push({ deviceId: d.id, power: 'OFF', why: '충분히 따뜻해 끄기' });
+      if (cfg.HEAT_ENABLED && d.power === 'ON' && d.mode === 'HEAT' && temp >= cfg.HEAT_OFF) actions.push({ deviceId: d.id, power: 'OFF', why: '충분히 따뜻해 끄기' });
     }
     return { state, temp, actions, reason: actions.length ? `방 온도 ${temp}° — 목표 도달, 끄기` : `방 온도 ${temp}° — 적정(제어 없음)` };
   }

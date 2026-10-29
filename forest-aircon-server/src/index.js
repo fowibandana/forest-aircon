@@ -68,7 +68,9 @@ export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, know
   return { thinq, sched, devices: states };
 }
 
-function evaluate(sched, devices, smap = {}) {
+const heatOn = (env) => env && env.HEAT_ENABLED === '1';   // 난방은 중앙제어로 막혀 있으므로 기본은 꺼짐
+
+function evaluate(sched, devices, smap = {}, heat = false) {
   const by = itemsByRoom(sched.items);
   const out = {}, cfgs = {};
   for (const key of Object.keys(PLACES)) {
@@ -80,7 +82,7 @@ function evaluate(sched, devices, smap = {}) {
       out[key] = { state: 'off', reason: '이 방은 자동 제어를 꺼 두었습니다', temp: temps.length ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10 : null, actions: [] };
       continue;
     }
-    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: cfgOf(settings) });
+    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: cfgOf(settings, heat) });
   }
   return { by, decisions: out, cfgs };
 }
@@ -129,7 +131,7 @@ async function statusResponse(env, fresh = false) {
       }
     }
   }
-  const { by, decisions, cfgs } = evaluate(snap.sched, snap.devices, smap);
+  const { by, decisions, cfgs } = evaluate(snap.sched, snap.devices, smap, heatOn(env));
   const floors = FLOOR_ORDER.map((f) => ({
     floor: f,
     rooms: Object.entries(PLACES).filter(([, r]) => r.floor === f).map(([key, r]) => ({
@@ -148,7 +150,7 @@ async function statusResponse(env, fresh = false) {
     nowMin: snap.sched.nowMin,
     floors,
     others: snap.devices.filter((d) => !d.room).map(pub),   // 어느 방인지 모르는 에어컨(표에 추가 필요)
-    auto: { mode: env.AUTO_MODE === 'live' ? 'live' : 'dry', paused: await isPaused(env), canPause: !!env.STATE, canSave: !!env.STATE, defaults: DEFAULTS },
+    auto: { mode: env.AUTO_MODE === 'live' ? 'live' : 'dry', heat: heatOn(env), paused: await isPaused(env), canPause: !!env.STATE, canSave: !!env.STATE, defaults: DEFAULTS },
   };
 }
 
@@ -159,6 +161,7 @@ async function controlResponse(env, body) {
   if (!ids.length) return json({ ok: false, error: '대상 에어컨이 없습니다' }, 400);
   if (ids.length > 12) return json({ ok: false, error: '한 번에 12대까지만 제어합니다' }, 400);
   if (!['cool', 'heat', 'off', 'temp'].includes(action)) return json({ ok: false, error: '알 수 없는 동작' }, 400);
+  if (action === 'heat' && !heatOn(env)) return json({ ok: false, error: '난방은 현재 중앙제어로 막혀 있어 사용하지 않습니다' }, 400);
   let value = null;
   if (action === 'temp') {
     value = Number(body.value);
@@ -220,7 +223,7 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
   const sched = knownSched || await fetchSchedule(fetchFn);
   const by = itemsByRoom(sched.items);
   const snap = await snapshot(env, fetchFn, (k) => (by[k] || []).length > 0, sched);
-  const { decisions } = evaluate(snap.sched, snap.devices, await loadSettings(env));
+  const { decisions } = evaluate(snap.sched, snap.devices, await loadSettings(env), heatOn(env));
   const live = env.AUTO_MODE === 'live';
   const log = [];
   for (const [key, d] of Object.entries(decisions)) {
