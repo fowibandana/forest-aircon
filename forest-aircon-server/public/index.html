@@ -219,10 +219,10 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 
 
 /* 자동·수동 로그, 오류 목록, 에어컨 기능표 — 앱 맨 아래 */
-.logBtns{align-items:center;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:6px 0 4px}
-.lb{min-height:0;height:auto;line-height:1.2;width:auto;flex:0 0 auto;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
-.lb.err{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
-.lb .n{background:var(--bad);color:#fff;border-radius:999px;font-size:11px;padding:0 6px;min-width:18px;text-align:center;line-height:18px}
+.logBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 4px}
+.lb{font:inherit;font-size:13px;font-weight:700;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:12px;height:40px;min-height:0;width:auto;line-height:1;padding:0 8px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;justify-content:center;white-space:nowrap}
+.lb.lbe{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.lb .n{background:var(--bad);color:#fff;border-radius:999px;font-size:11px;padding:0 6px;min-width:18px;text-align:center;line-height:18px;height:18px}
 #logd{width:min(94vw,560px);padding:0;overflow:hidden}
 #logd[open]{display:flex;flex-direction:column;max-height:86vh}
 #logd .dh{display:flex;align-items:center;gap:10px;padding:14px 16px 6px}#logd .dh h3{flex:1;margin:0}
@@ -294,7 +294,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   <div id="plan" class="plan"></div>
   <div id="rooms"></div>
   <div id="others" class="others"></div>
-  <div class="logBtns"><button class="lb" id="bMan">수동 로그</button><button class="lb" id="bAuto">자동제어 로그</button><button class="lb err" id="bErr">오류 목록 <span class="n" id="nErr" hidden>0</span></button><button class="lb" id="bCap">에어컨 기능 확인</button></div>
+  <div class="logBtns"><button class="lb" id="bMan">수동 로그</button><button class="lb" id="bAuto">자동제어 로그</button><button class="lb lbe" id="bErr">오류 목록 <span class="n" id="nErr" hidden>0</span></button></div>
   <footer class="ver" id="ver"></footer>
 </main>
 
@@ -339,7 +339,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.8.0';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.8.1';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -670,7 +670,7 @@ function drawLog() {
   }).join('') : `<div class="empty">${logKind === 'error' ? '이 기간에 오류가 없습니다' : '이 기간에 기록이 없습니다'}</div>`;
 }
 async function openLog(kind) {
-  logKind = kind; logRange = '오늘'; logRows = []; $('ldList').innerHTML = '<div class="empty">불러오는 중…</div>'; drawLog(); $('ldDl').hidden = false; $('logd').showModal();
+  logKind = kind; logRange = '오늘'; logRows = []; $('ldList').innerHTML = '<div class="empty">불러오는 중…</div>'; drawLog(); $('logd').showModal();
   try { const r = await api('/api/logs?kind=' + kind); logRows = r.logs || []; if (!r.canStore) $('ldS').textContent = '기록을 저장하려면 서버에 KV(STATE)가 연결되어야 합니다.'; if (kind === 'error') setErrBadge(); drawLog(); }
   catch (e) { $('ldList').innerHTML = `<div class="empty">불러오지 못했습니다: ${esc(e.message)}</div>`; }
 }
@@ -683,16 +683,7 @@ function downloadLog() {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `냉난방_${LOGKIND[logKind][0].replace(/\s/g, '')}_${kstToday()}.csv`;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
-async function openCap() {
-  logKind = 'cap'; $('ldT').textContent = '에어컨 기능 확인'; $('ldS').textContent = 'LG 서버가 알려 주는, 이 에어컨이 실제로 지원하는 항목입니다(에어컨 1대 기준).';
-  $('ldSeg').innerHTML = ''; $('ldDl').hidden = true; $('ldList').innerHTML = '<div class="empty">LG 서버에서 불러오는 중…</div>'; $('logd').showModal();
-  try {
-    const r = await api('/api/profile');
-    $('ldS').textContent = `${r.alias} (${r.model || '모델 미상'}) 이 지원하는 항목입니다. 읽기(r)/쓰기(w) 표시 기준.`;
-    $('ldList').innerHTML = r.items.length ? r.items.map((i) => `<div class="row"><span class="t">${esc(i.mode)}</span><span class="m">${esc(i.path)}</span><span class="d cap">${esc(i.type)} · <code>${esc(i.value)}</code></span></div>`).join('') : '<div class="empty">항목이 없습니다</div>';
-  } catch (e) { $('ldList').innerHTML = `<div class="empty">불러오지 못했습니다: ${esc(e.message)}</div>`; }
-}
-$('bMan').onclick = () => openLog('manual'); $('bAuto').onclick = () => openLog('auto'); $('bErr').onclick = () => openLog('error'); $('bCap').onclick = openCap;
+$('bMan').onclick = () => openLog('manual'); $('bAuto').onclick = () => openLog('auto'); $('bErr').onclick = () => openLog('error');
 $('ldX').onclick = () => $('logd').close();
 $('logd').addEventListener('click', (e) => { if (e.target === $('logd')) $('logd').close(); });
 $('ldSeg').onclick = (e) => { const b = e.target.closest('[data-r]'); if (b) { logRange = b.dataset.r; drawLog(); } };
