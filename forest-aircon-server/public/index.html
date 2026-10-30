@@ -167,6 +167,9 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .tile{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:16px 16px 14px;border-radius:18px;border:2px solid var(--line);background:var(--card);text-align:left;min-height:136px;position:relative}
 .tile:last-child:nth-child(odd){grid-column:1/-1}
 .tile .tp{font-weight:800;font-size:19px;letter-spacing:-.01em;padding-right:26px}
+.tile .tp.one{white-space:nowrap;font-size:14px;letter-spacing:-.03em;padding-right:0}
+.tile .tp.one .nn{margin-left:6px;font-size:16px}
+.tile:has(.tp.one) i{width:12px;height:12px;right:12px;top:14px}
 .tile .ts{font-size:15px;color:var(--mute)}
 .tile .tc{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:auto}
 .tile .tc small{font-size:11.5px;font-weight:500;color:var(--mute);margin-left:4px}
@@ -255,7 +258,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
         <h1>산림치유센터 냉난방관리</h1>
         <div class="sub" id="sub">불러오는 중…</div>
       </div>
-      <button class="ic" id="refresh" aria-label="전체 새로고침"><svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+      <button class="ic" id="refresh" aria-label="이 층 새로고침" title="이 층 새로고침"><svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
     </div>
     <div class="autoBar" id="autoBar"></div>
     <nav class="tabs" id="tabs"></nav>
@@ -303,7 +306,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.7.0';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.7.1';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -362,7 +365,8 @@ async function load(first, fresh) {
     if (first) { $('login').classList.add('hide'); $('app').classList.remove('hide'); }
   } finally { busy = false; $('refresh').classList.remove('spin'); }
 }
-$('refresh').onclick = () => load(false, true);
+let curIds = [];   // 지금 보는 층의 에어컨 — 맨 위 새로고침은 이 층만 읽는다(LG 호출 절약)
+$('refresh').onclick = async () => { const b = $('refresh'); b.classList.add('spin'); try { await refreshIds(curIds, b); } finally { b.classList.remove('spin'); } };
 // 자동 갱신 타이머는 없다(LG 호출 절약). 앱을 다시 열었을 때 5분 넘게 지났으면 한 번만 불러온다.
 document.addEventListener('visibilitychange', () => { if (!document.hidden && store.get() && DATA && Date.now() - loadedAt > 300000) load(); });
 
@@ -379,18 +383,19 @@ const PLAN = {
 
 const WALL_W = 3.5, PAD = 20, f1 = (n) => (+n).toFixed(1);
 /* 에어컨 위치 — 도면에서 «왼쪽 → 오른쪽» 순서. 이름에 들어 있는 글자로 찾는다. 현장 확인한 내용: 2층은 스크린이 전부 오른쪽, 체험실·건강측정실은 문이/혈압계가 오른쪽.
-   'numDesc' = 이름 끝 번호가 큰 것부터(= 1번이 오른쪽). 방(또는 «방:구역») 키로 지정, 없으면 이름 순서 그대로. 바꾸려면 이 표만 고치면 됩니다. */
+   'numDesc' = 이름 끝 번호가 큰 것부터(= 1번이 오른쪽), 'numAsc' = 번호 작은 것부터(= 1번이 왼쪽). 방(또는 «방:구역») 키로 지정, 없으면 이름 순서 그대로. 바꾸려면 이 표만 고치면 됩니다. */
 const AC_ORDER = {
   r201: ['창측', '내측'], r202: ['강사측', '스크린측'], r203: ['입구측', '스크린측'], r204: ['입구측', '스크린측'], r205: ['탕비실측', '강사측'],
   b102: ['입구측', '혈압계측'], '체험실': ['내측', '입구측'],
-  hp1: 'numDesc', hp2: 'numDesc',
+  hp1: 'numAsc', hp2: 'numDesc',   // 치유장비실(=건강증진실1): 왼쪽부터 1234 / 건강증진실2: 1이 오른쪽
   b1lobby: ['내측', '신발장측'],   // 로비는 좌우가 아니라 «위 → 아래» 순서(위: 내측, 아래: 신발장측)
 };
 const SCREEN_RIGHT = new Set(['r201', 'r202', 'r203', 'r204', 'r205']);   // 스크린이 오른쪽 벽에 있는 방
+const numOf = (d) => { const m = /(\d+)[^\d]*$/.exec(String(d.alias || '')); return m ? +m[1] : 0; };
 function acOrder(roomKey, zone, devs) {
   const rule = AC_ORDER[zone] || AC_ORDER[roomKey]; if (!rule) return devs;
   const nm = (d) => String(d.alias || '').replace(/\s+/g, '');
-  if (rule === 'numDesc') { const num = (d) => { const m = /(\d+)[^\d]*$/.exec(String(d.alias || '')); return m ? +m[1] : 0; }; return [...devs].sort((a, b) => num(b) - num(a)); }
+  if (rule === 'numDesc' || rule === 'numAsc') { const num = (d) => { const m = /(\d+)[^\d]*$/.exec(String(d.alias || '')); return m ? +m[1] : 0; }; return [...devs].sort((a, b) => rule === 'numDesc' ? num(b) - num(a) : num(a) - num(b)); }
   const idx = (d) => { const i = rule.findIndex((k) => nm(d).includes(k)); return i < 0 ? 99 : i; };
   return [...devs].sort((a, b) => idx(a) - idx(b));
 }
@@ -541,7 +546,7 @@ function planHtml(F) {
         const showCap = gap >= 62 && n > 1 && !r.noapi, py = Math.min(ay, y + h - (showCap ? 48 : 32));
         devs.forEach((d, i) => { const px = x0 + i * gap; txt += acSvg(px, py, acClass(d), d.unsupported || !d.id ? '' : d.id); if (showCap) txt += cap(d, px, py); });
       }
-      if (r.noapi) txt += `<text class="t3" x="${f1(cx)}" y="${f1(Math.min(ay, y + h - 32) + 40)}">앱에서만 조작</text>`;
+      if (r.noapi) txt += `<text class="t3" x="${f1(cx)}" y="${f1(Math.min(ay, y + h - 32) + 40)}">현장 제어</text>`;
     } else txt += `<text class="t3" x="${f1(cx)}" y="${f1(cy + 62)}">에어컨 없음</text>`;
     txt += '</g>';
   }
@@ -583,15 +588,16 @@ const STATE_TXT = { active: '진행 중', soon: '곧 시작', done: '종료', ga
 
 /* 에어컨 한 대 = 큰 버튼. 이름의 «위치»(내측·창측·스크린측…)로 구분한다. */
 function tileHtml(d) {
-  const pos = esc(posName(d.alias));
-  if (d.unsupported) return `<div class="tile na"><i></i><span class="tp">${pos}</span><span class="ts">제어 불가 (ThinQ 앱에서만)</span></div>`;
+  const tpc = /\d\s*\)?\s*$/.test(String(d.alias || '')) ? 'tp one' : 'tp';
+  const pos = tpc === 'tp' ? esc(posName(d.alias)) : esc(posName(d.alias)).replace(/\s*(\d+)\s*$/, '<b class="nn">$1</b>');   // 번호는 이름 옆에 한 줄로(예: 건강증진실2 + 1)
+  if (d.unsupported) return `<div class="tile na"><i></i><span class="${tpc}">${pos}</span><span class="ts">제어 불가 · 현장 제어</span></div>`;
   const cur = d.cur != null ? `<span class="tc">${d.cur}°<small>현재</small></span>` : '';
-  if (!d.ok) return `<button class="tile tbad" data-id="${esc(d.id)}"><i></i><span class="tp">${pos}</span><span class="ts">읽기 실패 · 눌러서 제어</span></button>`;
+  if (!d.ok) return `<button class="tile tbad" data-id="${esc(d.id)}"><i></i><span class="${tpc}">${pos}</span><span class="ts">읽기 실패 · 눌러서 제어</span></button>`;
   if (d.power === 'ON') {
     const cls = d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
-    return `<button class="tile ${cls}" data-id="${esc(d.id)}"><i></i><span class="tp">${pos}</span><span class="ts">${esc(MODE[d.mode] || d.mode || '켜짐')} · 설정 ${d.target ?? '–'}°</span>${cur}</button>`;
+    return `<button class="tile ${cls}" data-id="${esc(d.id)}"><i></i><span class="${tpc}">${pos}</span><span class="ts">${esc(MODE[d.mode] || d.mode || '켜짐')} · 설정 ${d.target ?? '–'}°</span>${cur}</button>`;
   }
-  return `<button class="tile" data-id="${esc(d.id)}"><i></i><span class="tp">${pos}</span><span class="ts">꺼짐</span>${cur}</button>`;
+  return `<button class="tile" data-id="${esc(d.id)}"><i></i><span class="${tpc}">${pos}</span><span class="ts">꺼짐</span>${cur}</button>`;
 }
 function sumActions(list) {
   const m = {}; list.forEach((a) => { m[a] = (m[a] || 0) + 1; });
@@ -640,6 +646,7 @@ function render() {
   const ids = F.rooms.flatMap((r) => r.devices.filter((x) => !x.unsupported).map((x) => x.id));
   const onIds = F.rooms.flatMap((r) => r.devices.filter((x) => !x.unsupported && x.power === 'ON').map((x) => x.id));
   $('floorBar').innerHTML = `<span>에어컨 ${ids.length}대 · 켜짐 ${onIds.length}대</span><span class="fb"><button id="floorRef">이 층 새로고침</button><button id="floorOff" ${onIds.length ? '' : 'disabled'}>${F.floor} 전체 끄기</button></span>`;
+  curIds = ids;
   $('floorRef').onclick = (e) => refreshIds(ids, e.currentTarget);
   $('floorOff').onclick = () => confirmAct(`${F.floor} 전체 끄기`, `켜져 있는 에어컨 ${onIds.length}대를 끕니다.`, onIds, 'off');
 
@@ -647,10 +654,10 @@ function render() {
   $('rooms').innerHTML = F.rooms.map((r) => {
     const temps = r.devices.filter((x) => x.ok && x.cur != null).map((x) => x.cur);
     const avg = temps.length ? (temps.reduce((p, c) => p + c, 0) / temps.length) : null;
-    const rdev = r.key === 'media' ? [...acOrder('media', '체험실', r.devices.filter((d) => /체험실/.test(d.alias))), ...acOrder('media', '실감실', r.devices.filter((d) => !/체험실/.test(d.alias)))] : acOrder(r.key, null, r.devices);
+    const rdev = r.key === 'media' ? [...acOrder('media', '체험실', r.devices.filter((d) => /체험실/.test(d.alias))), ...acOrder('media', '실감실', r.devices.filter((d) => !/체험실/.test(d.alias)))] : (r.key === 'hp1' || r.key === 'hp2') ? [...r.devices].sort((a, b) => numOf(a) - numOf(b)) : acOrder(r.key, null, r.devices);   // 목록은 1 2 / 3 4 (도면 위치와 별개)
     let body;
     if (r.noapi) {
-      body = `<div class="tiles">${r.devices.map((d) => tileHtml(d)).join('')}</div><div class="noac">이 에어컨은 LG 서버가 상태 확인·제어를 지원하지 않아, 이 화면에서는 조작할 수 없습니다. ThinQ 앱이나 리모컨으로 조작해 주세요. (일정은 그대로 표시됩니다)</div>`;
+      body = `<div class="tiles">${r.devices.map((d) => tileHtml(d)).join('')}</div><div class="noac">이 에어컨은 LG 서버가 상태 확인·제어를 지원하지 않아 이 화면에서는 조작할 수 없습니다. 현장에서 직접(리모컨 등) 조작해 주세요. (일정은 그대로 표시됩니다)</div>`;
     } else if (r.devices.length) {
       body = `<div class="tiles">${rdev.map((d) => tileHtml(d)).join('')}</div>
         <div class="roomAct" data-room="${r.key}"><button class="cool" data-a="cool">방 전체 냉방</button>${heatOn() ? '<button class="heat" data-a="heat">방 전체 난방</button>' : ''}<button data-a="off">방 전체 끄기</button></div>`;
@@ -728,7 +735,7 @@ function openInfo(room) {
   const st = room.settings || {}, a = room.auto || { state: 'none', reason: '', actions: [] };
   const rows = [];
   if (!room.scheduled) rows.push(['자동 제어', '이 방은 일정과 연동하지 않습니다. 직접 눌러서만 제어합니다.']);
-  else if (room.noapi) rows.push(['자동 제어', '이 방의 에어컨은 LG 서버가 제어를 지원하지 않아 자동·수동 모두 앱에서만 조작할 수 있습니다.']);
+  else if (room.noapi) rows.push(['자동 제어', '이 방의 에어컨은 LG 서버가 제어를 지원하지 않아 화면에서는 조작할 수 없고 현장에서 직접 조작해야 합니다.']);
   else if (!st.enabled) rows.push(['자동 제어', '이 방은 자동 제어를 껐습니다.']);
   else {
     const stt = STATE_TXT[a.state];
