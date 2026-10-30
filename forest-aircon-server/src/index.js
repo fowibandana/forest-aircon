@@ -1,4 +1,5 @@
-import { CONFIG, ROOM_OVERRIDES } from './config.js';
+import { CONFIG, ROOM_OVERRIDES, ALWAYS_COOL_ROOMS, WIND_DEFAULT } from './config.js';
+import { loadLogs, addLogs, pickLogs } from './logs.js';
 import { PLACES, FLOOR_ORDER, placeOfDevice } from './rooms.js';
 import { fetchSchedule, itemsByRoom, summarizeRoom } from './schedule.js';
 import { Thinq } from './thinq.js';
@@ -78,12 +79,13 @@ function evaluate(sched, devices, smap = {}, heat = false) {
     const devs = devices.filter((d) => d.room === key && d.ok);
     const { settings, custom } = settingsOf(smap, key);
     cfgs[key] = { settings, custom };
-    if (!settings.enabled && (by[key] || []).length) {
+    const always = ALWAYS_COOL_ROOMS.includes(key);
+    if (!settings.enabled && ((by[key] || []).length || always)) {
       const temps = devs.map((d) => d.cur).filter((v) => typeof v === 'number');
       out[key] = { state: 'off', reason: '이 방은 자동 제어를 꺼 두었습니다', temp: temps.length ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10 : null, actions: [] };
       continue;
     }
-    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: cfgOf(settings, heat) });
+    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: { ...cfgOf(settings, heat), ALWAYS_COOL: always } });
   }
   return { by, decisions: out, cfgs };
 }
@@ -176,13 +178,16 @@ async function controlResponse(env, body) {
   for (const id of ids) {
     if (!known.has(id)) { results.push({ id, ok: false, error: '제어할 수 없는 에어컨입니다(미등록·후순위·API 미지원)' }); continue; }
     try {
-      await applyOne(thinq, id, action === 'cool' ? { power: 'ON', mode: 'COOL', temp: body.value ? Number(body.value) : undefined }
+      const warn = await applyOne(thinq, id, action === 'cool' ? { power: 'ON', mode: 'COOL', temp: body.value ? Number(body.value) : CONFIG.COOL_TARGET, wind: WIND_DEFAULT }
         : action === 'heat' ? { power: 'ON', mode: 'HEAT', temp: body.value ? Number(body.value) : undefined }
         : action === 'off' ? { power: 'OFF' } : { temp: value });
-      results.push({ id, ok: true });
+      results.push({ id, ok: true, warn });
     } catch (e) { results.push({ id, ok: false, error: e.message }); }
     await sleep(300);
   }
+  const byId = new Map(acs.map((d) => [d.id, d]));
+  const label = action === 'cool' ? `냉방 켜기 ${body.value ? Number(body.value) : CONFIG.COOL_TARGET}° · 바람 자동` : action === 'heat' ? '난방 켜기' : action === 'off' ? '끄기' : `온도 ${value}°`;
+  await addLogs(env, results.map((r) => { const d = byId.get(r.id) || {}; const k = d.id ? deviceRoom(d) : null; return { kind: 'manual', room: (PLACES[k] || {}).name || '', dev: d.alias || r.id.slice(0, 8), what: label, res: r.ok ? 'ok' : 'fail', note: r.ok ? (r.warn || []).join(' / ') : r.error }; }));
   return json({ ok: results.every((r) => r.ok), results });
 }
 
@@ -209,11 +214,37 @@ async function refreshResponse(env, body) {
   return json({ ok: true, devices: out.map((r) => ({ id: r.id, ok: !!r.ok, error: r.error || null, power: r.power || null, mode: r.mode || null, cur: r.cur ?? null, target: r.target ?? null })) });
 }
 
+// 에어컨 한 대에 켜기/모드/온도/바람세기를 적용한다. 반환: 경고 목록(바람세기처럼 «실패해도 켜기는 된» 항목)
 async function applyOne(thinq, id, a) {
-  if (a.power === 'OFF') { await thinq.setPower(id, false); return; }
+  const warn = [];
+  if (a.power === 'OFF') { await thinq.setPower(id, false); return warn; }
   if (a.power === 'ON') { await thinq.setPower(id, true); await sleep(300); }
   if (a.mode) { await thinq.setMode(id, a.mode); await sleep(300); }
-  if (typeof a.temp === 'number' && Number.isFinite(a.temp)) await thinq.setTemp(id, a.temp, a.mode);
+  if (typeof a.temp === 'number' && Number.isFinite(a.temp)) { await thinq.setTemp(id, a.temp, a.mode); await sleep(300); }
+  if (a.wind) { try { await thinq.setWind(id, a.wind); } catch (e) { warn.push('바람세기 ' + a.wind + ' 설정 실패: ' + e.message); } }
+  return warn;
+}
+const costOf = (a) => a.power === 'OFF' ? 1 : 1 + (a.mode ? 1 : 0) + (typeof a.temp === 'number' ? 2 : 0) + (a.wind ? 1 : 0);
+const SUBREQ_LIMIT = 40;   // 무료 플랜 요청당 50회(일정·KV 몫을 빼고 LG 호출은 40회까지)
+
+// 에어컨이 실제로 지원하는 항목(LG 가 알려 주는 «기기 프로파일») — 쾌적풍·바람 방향 같은 기능이 되는지 확인용
+function flattenProfile(o, path = [], out = []) {
+  if (!o || typeof o !== 'object') return out;
+  if (o.type !== undefined && o.mode !== undefined) {
+    const v = o.value && (o.value.w || o.value.r || o.value);
+    out.push({ path: path.join('.'), mode: [].concat(o.mode).join('/'), type: o.type, value: JSON.stringify(v).slice(0, 140) });
+    return out;
+  }
+  for (const [k, v] of Object.entries(o)) flattenProfile(v, [...path, k], out);
+  return out;
+}
+async function profileResponse(env, id) {
+  const thinq = new Thinq(env.THINQ_PAT);
+  const acs = (await deviceList(env, thinq)).filter((d) => /AIR_CONDITIONER/i.test(d.type)).map((d) => ({ ...d, room: deviceRoom(d) })).filter((d) => d.room && PLACES[d.room] && !PLACES[d.room].noapi);
+  const dev = (id && acs.find((d) => d.id === id)) || acs[0];
+  if (!dev) return json({ ok: false, error: '조회할 에어컨이 없습니다' }, 404);
+  const prof = await thinq.getProfile(dev.id);
+  return json({ ok: true, alias: dev.alias, model: dev.model, items: flattenProfile(prof.property || prof) });
 }
 
 // ── 알림(KV 'alerts'): 오늘 날짜 것만 보여 주고, «확인»하면 사라진다 ──
@@ -242,35 +273,53 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
   const sched = knownSched || await fetchSchedule(fetchFn);
   const by = itemsByRoom(sched.items);
   const need = roomsNeeded(sched.nowMin, Object.keys(PLACES));
-  const snap = await snapshot(env, fetchFn, (k) => need.has(k) || (!opts.supplyOnly && (by[k] || []).length > 0), sched);
+  const snap = await snapshot(env, fetchFn, (k) => need.has(k) || ALWAYS_COOL_ROOMS.includes(k) || (!opts.supplyOnly && (by[k] || []).length > 0), sched);
   const smap = await loadSettings(env);
   const { decisions } = evaluate(snap.sched, snap.devices, smap, heatOn(env));
   const enabledOf = (k) => settingsOf(smap, k).settings.enabled;
   const live = env.AUTO_MODE === 'live';
+  const entries = [];
+  const aliasOf = new Map(snap.devices.map((d) => [d.id, d.alias]));
+  const nameOf = (k) => (PLACES[k] || {}).name || k || '';
 
-  // 추운 방 알림(난방은 중앙제어라 사람이 확인) — 일시중지 중이어도 알림은 보내고 싶지만 여기서는 자동 제어와 같이 돈다
+  // 상태를 못 읽은 에어컨이 있으면 오류로 남긴다(LG 호출 한도 등)
+  const failed = snap.devices.filter((d) => d.ok === false);
+  if (failed.length) entries.push({ kind: 'sys', what: `에어컨 ${failed.length}대 상태 읽기 실패`, res: 'fail', note: failed[0].error });
+
+  // 추운 방 알림(난방은 중앙제어라 사람이 확인)
   const cold = coldAlerts({ nowMin: sched.nowMin, decisions, by, allItems: sched.items, enabledOf, date: sched.date });
-  if (cold.length) { await addAlerts(env, cold); console.log('[alert]', JSON.stringify(cold)); }
+  if (cold.length) {
+    await addAlerts(env, cold); console.log('[alert]', JSON.stringify(cold));
+    for (const c of cold) entries.push({ kind: 'auto', room: nameOf(c.room), what: '난방 확인 필요 알림', res: 'ok', note: `${c.temp}° — ${hhmm(c.start)} 프로그램 있음` });
+  }
 
   // 조치 모으기: 일정 기반 판단 + 시각 규칙(같은 에어컨이면 시각 규칙이 우선). 비품실은 어떤 경우에도 끄지 않는다.
   const todo = new Map();
   for (const [key, d] of Object.entries(decisions)) for (const a of d.actions) todo.set(a.deviceId, { ...a, room: key, reason: d.reason });
   for (const a of timedActions({ nowMin: sched.nowMin, devices: snap.devices, by, allItems: sched.items, enabledOf })) todo.set(a.deviceId, { ...a, reason: a.why });
   for (const [id, a] of todo) if (a.room === 'supply' && a.power === 'OFF') todo.delete(id);
+  for (const a of todo.values()) if (a.power === 'ON' && a.mode === 'COOL') { if (typeof a.temp !== 'number') a.temp = CONFIG.COOL_TARGET; a.wind = a.wind || WIND_DEFAULT; }
 
   const log = [];
+  let deferred = 0;
   for (const a of todo.values()) {
     const line = { room: a.room, device: a.deviceId.slice(0, 8), do: a.why, reason: a.reason, live };
+    const e = { kind: 'auto', room: nameOf(a.room), dev: aliasOf.get(a.deviceId) || a.deviceId.slice(0, 8), what: a.why, note: a.reason && a.reason !== a.why ? a.reason : '' };
     if (live) {
-      try { await applyOne(snap.thinq, a.deviceId, a); line.result = 'ok'; }
-      catch (e) { line.result = 'fail: ' + e.message; }
-      await sleep(300);
-    }
-    log.push(line);
+      if (snap.thinq && snap.thinq.calls + costOf(a) > SUBREQ_LIMIT) { deferred++; line.result = 'deferred'; e.res = 'skip'; e.note = '요청 한도 때문에 다음 점검으로 미룸'; }
+      else {
+        try { const w = await applyOne(snap.thinq, a.deviceId, a); line.result = 'ok'; e.res = 'ok'; if (w.length) e.note = (e.note ? e.note + ' / ' : '') + w.join(' / '); }
+        catch (er) { line.result = 'fail: ' + er.message; e.res = 'fail'; e.note = (e.note ? e.note + ' — ' : '') + er.message; }
+        await sleep(300);
+      }
+    } else { e.res = 'skip'; e.note = '시험 모드 — 실제로 제어하지 않음'; }
+    entries.push(e); log.push(line);
     console.log('[auto]', JSON.stringify(line));
   }
+  if (env.STATE) { try { await env.STATE.put('retry', deferred ? '1' : '0'); } catch {} }   // 미룬 일이 있으면 다음 5분 점검에서 바로 이어서 한다
   if (!log.length) console.log('[auto] 조치 없음', JSON.stringify(Object.fromEntries(Object.entries(decisions).filter(([, d]) => d.state !== 'none').map(([k, d]) => [k, d.reason]))));
-  return { live, log, alerts: cold };
+  await addLogs(env, entries, now);
+  return { live, log, alerts: cold, deferred };
 }
 
 // 5분마다 깨어나지만, LG 는 «필요한 때»에만 부른다(일정 시작 60분 전부터, 30분마다 + 중요한 순간)
@@ -280,7 +329,8 @@ export async function tickAuto(env, fetchFn = fetch, now = new Date()) {
   const sched = await fetchSchedule(fetchFn);
   const smap = await loadSettings(env);
   const by = itemsByRoom(sched.items);
-  const g = shouldCheckLG({ by, allItems: sched.items, nowMin: sched.nowMin, settingsOf: (k) => settingsOf(smap, k).settings, graceMin: CONFIG.POST_GRACE_MIN });
+  let g = shouldCheckLG({ by, allItems: sched.items, nowMin: sched.nowMin, settingsOf: (k) => settingsOf(smap, k).settings, graceMin: CONFIG.POST_GRACE_MIN, alwaysKeys: ALWAYS_COOL_ROOMS });
+  if (!g.run && env.STATE) { try { if (await env.STATE.get('retry') === '1') g = { run: true, why: '미룬 조치 이어서 하기' }; } catch {} }
   if (!g.run) { console.log('[auto] LG 호출 안 함 —', g.why); return { skipped: 'gate', why: g.why }; }
   console.log('[auto] LG 확인 —', g.why);
   return runAuto(env, fetchFn, now, sched, { supplyOnly: !!g.supplyOnly });
@@ -325,6 +375,11 @@ export default {
         const r = settingsOf(map, key);
         return json({ ok: true, room: key, settings: r.settings, customSettings: r.custom });
       }
+      if (url.pathname === '/api/logs' && request.method === 'GET') {
+        const kind = url.searchParams.get('kind') || 'auto';
+        return json({ ok: true, kind, canStore: !!env.STATE, logs: pickLogs(await loadLogs(env), kind) });
+      }
+      if (url.pathname === '/api/profile' && request.method === 'GET') return await profileResponse(env, url.searchParams.get('id'));
       if (url.pathname === '/api/alerts/ack' && request.method === 'POST') {
         const b = await request.json();
         const ids = b.all ? null : new Set((Array.isArray(b.ids) ? b.ids : []).map(String));
@@ -337,6 +392,7 @@ export default {
         if (!env.STATE) return json({ ok: false, error: 'KV(STATE)가 연결되지 않았습니다' }, 400);
         const b = await request.json();
         await env.STATE.put('paused', b.paused ? '1' : '0');
+        await addLogs(env, [{ kind: 'manual', what: b.paused ? '자동 제어 일시중지' : '자동 제어 다시 켬', res: 'ok' }]);
         return json({ ok: true, paused: !!b.paused });
       }
       return json({ ok: false, error: 'not found' }, 404);
@@ -347,6 +403,6 @@ export default {
 
   async scheduled(event, env, ctx) {
     if (!env.THINQ_PAT) { console.log('[auto] THINQ_PAT 없음'); return; }
-    ctx.waitUntil(tickAuto(env).catch((e) => console.log('[auto] 오류', e.message)));
+    ctx.waitUntil(tickAuto(env).catch(async (e) => { console.log('[auto] 오류', e.message); await addLogs(env, [{ kind: 'sys', what: '자동 점검 오류', res: 'fail', note: e.message }]); }));
   },
 };

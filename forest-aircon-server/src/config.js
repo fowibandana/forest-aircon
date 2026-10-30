@@ -21,3 +21,7 @@ export const CONFIG = {
 // 에어컨 이름(별칭)에서 방을 못 찾을 때, 기기 ID로 직접 지정한다.
 // 예) { 'eb8ce6a9...': 'r201' }  — 방 키는 src/rooms.js 의 ROOMS 참고
 export const ROOM_OVERRIDES = {};
+
+// 프로그램 유무와 상관없이 «방 온도가 HOT_ON 이상이면 냉방을 켜는» 방(06~22시). 끄는 건 COOL_OFF 이하일 때(일정이 있으면 기존 규칙도 그대로).
+export const ALWAYS_COOL_ROOMS = ['r204'];
+export const WIND_DEFAULT = 'AUTO';   // 냉방을 켤 때 바람 세기

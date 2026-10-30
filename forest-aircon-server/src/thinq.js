@@ -19,6 +19,7 @@ export class Thinq {
     this.fetchFn = fetchFn;   // 메서드로 호출하면 Workers 가 "Illegal invocation" 을 내므로 아래에서 변수로 꺼내 호출
     this.base = base;
     this.clientId = clientId;
+    this.calls = 0;   // 이번 실행에서 LG 를 부른 횟수(무료 플랜 요청당 50회 제한 관리용)
   }
 
   async req(method, path, body, control) {
@@ -33,6 +34,7 @@ export class Thinq {
     if (body) headers['Content-Type'] = 'application/json';
     if (control) headers['x-conditional-control'] = 'true';
     let r;
+    this.calls++;
     try {
       const doFetch = this.fetchFn;
       r = await doFetch(this.base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
@@ -65,6 +67,8 @@ export class Thinq {
 
   control(id, body) { return this.req('POST', '/devices/' + id + '/control', body, true); }
   setPower(id, on) { return this.control(id, { operation: { airConOperationMode: on ? 'POWER_ON' : 'POWER_OFF' } }); }
+  setWind(id, strength = 'AUTO') { return this.control(id, { airFlow: { windStrength: strength } }); }
+  async getProfile(id) { const j = await this.req('GET', '/devices/' + id + '/profile'); return j.response || j; }
   setMode(id, mode) { return this.control(id, { airConJobMode: { currentJobMode: mode } }); }
 
   // 목표 온도 — targetTemperature 가 거절되면(4xx) 모드별 항목으로 재시도

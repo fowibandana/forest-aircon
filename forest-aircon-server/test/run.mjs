@@ -144,8 +144,9 @@ await t('자동(live): 203호 20분 전 + 더움 → 두 대 켜고 냉방·26�
   const w = makeWorld({ nowMin: 9 * 60 + 40, items: [item('2F 203호(명상실)', '10:00', '11:00')], temps: { r203: 30.5 } });
   await withWorld(w, () => runAuto(ENV, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40))));
   const ctl = w.calls.filter((c) => c.method === 'POST' && /control$/.test(c.url));
-  assert.equal(ctl.length, 6); // 2대 × (전원, 모드, 온도)
-  assert.deepEqual(ctl.slice(0, 3).map((c) => Object.keys(c.body)[0]), ['operation', 'airConJobMode', 'temperature']);
+  assert.equal(ctl.length, 8); // 2대 × (전원, 모드, 온도, 바람세기)
+  assert.deepEqual(ctl.slice(0, 4).map((c) => Object.keys(c.body)[0]), ['operation', 'airConJobMode', 'temperature', 'airFlow']);
+  assert.equal(ctl[3].body.airFlow.windStrength, 'AUTO');
   assert.equal(ctl[0].body.operation.airConOperationMode, 'POWER_ON');
   assert.equal(ctl[1].body.airConJobMode.currentJobMode, 'COOL');
   assert.equal(ctl[2].body.temperature.targetTemperature, 26);
@@ -153,7 +154,7 @@ await t('자동(live): 203호 20분 전 + 더움 → 두 대 켜고 냉방·26�
   // 일정 없는 방(2F 다른 방, 후순위)은 건드리지 않음
   const touched = new Set(ctl.map((c) => c.url.match(/devices\/(\w+)\//)[1]));
   assert.equal(touched.size, 2);
-  assert.equal(w.calls.filter((c) => /state$/.test(c.url)).length, 3, '일정 있는 방(203호 2대) + 비품실 1대만 상태를 읽어야 함');
+  assert.equal(w.calls.filter((c) => /state$/.test(c.url)).length, 5, '일정 있는 방(203호 2대) + 상시 냉방 방(204호 2대) + 비품실 1대만 상태를 읽어야 함');
   assert.equal(w.calls.filter((c) => /jinan-schedule/.test(c.url)).length, 1, '일정은 한 번만 읽어야 함');
 });
 await t('자동(dry): 시험 모드는 제어 호출이 없다', async () => {
@@ -187,8 +188,12 @@ await t('수동 제어: 등록 안 된 기기·범위 밖 온도 거절', async 
     assert.equal(r.ok, false); assert.ok(r.results.every((x) => !x.ok));
     const ok = await (await post({ deviceIds: ['dev0'], action: 'cool', value: 24 })).json();
     assert.equal(ok.ok, true);
+    const def = await (await post({ deviceIds: ['dev1'], action: 'cool' })).json();   // 값을 안 주면 26°·바람 자동
+    assert.equal(def.ok, true);
   });
-  assert.equal(w.calls.filter((c) => c.method === 'POST' && /control$/.test(c.url)).length, 3);
+  const cc = w.calls.filter((c) => c.method === 'POST' && /control$/.test(c.url));
+  assert.equal(cc.length, 8);
+  assert.equal(cc[6].body.temperature.targetTemperature, 26); assert.equal(cc[7].body.airFlow.windStrength, 'AUTO');
 });
 await t('해아림홀은 제어 불가: 상태도 읽지 않고, 제어 요청도 거절, 자동도 건드리지 않는다', async () => {
   const w = makeWorld({ nowMin: 9 * 60, temps: { haearim: 31 }, items: [item('해아림홀', '09:30', '11:00')] });
@@ -331,7 +336,7 @@ await t('비품실 켜짐 확인은 매시 정각에 비품실만 읽고, 꺼져
   const w = makeWorld({ nowMin: 8 * 60, items: [item('스마트치유실 B101호', '10:00', '11:00')], power: { '산림치유센터 비품실': 'POWER_OFF' } });
   const now = new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + 8 * 60 * 60e3);
   const r = await withWorld(w, () => tickAuto({ ...ENV, AUTO_MODE: 'live' }, w.fetchFn, now));
-  const states = w.calls.filter((c) => /\/state$/.test(c.url)); assert.equal(states.length, 1, '비품실 1대만 읽음');
+  const states = w.calls.filter((c) => /\/state$/.test(c.url)); assert.equal(states.length, 4, '비품실 + 상시 냉방 방(204호) + 일정 있는 방만 읽음');
   const ctl = w.calls.filter((c) => /\/control$/.test(c.url)); assert.equal(ctl.length, 1);
   assert.equal(ctl[0].body.operation.airConOperationMode, 'POWER_ON'); assert.ok(r.log.length === 1);
 });
@@ -383,6 +388,74 @@ await t('09시: 오늘 일정이 있는 방이 너무 추우면 «난방 확인 
   const w2 = makeWorld({ nowMin: 9 * 60, items: [item('스마트치유실 B101호', '10:30', '11:30')], temps: { b101: 22 } });
   const r2 = await withWorld(w2, () => tickAuto({ ...ENV, STATE: { m: {}, async get() { return null; }, async put() {} } }, w2.fetchFn, now));
   assert.equal(r2.alerts.length, 0);
+});
+
+const mkKV = () => ({ m: {}, async get(k) { return this.m[k] ?? null; }, async put(k, v) { this.m[k] = v; } });
+const at = (hm) => { const [h, m] = hm.split(':').map(Number); return { nowMin: h * 60 + m, now: new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + (h * 60 + m) * 60e3) }; };
+
+await t('204호는 프로그램이 없어도 28° 이상이면 냉방(26°·바람 자동), 24° 이하면 끈다 — 다른 방은 그대로', async () => {
+  const k = at('14:00');
+  const hot = makeWorld({ nowMin: k.nowMin, items: [], temps: { r204: 29, r203: 30 } });
+  const kv = mkKV();
+  const r = await withWorld(hot, () => tickAuto({ ...ENV, STATE: kv }, hot.fetchFn, k.now));
+  const ctl = hot.calls.filter((c) => /control$/.test(c.url));
+  assert.equal(ctl.filter((c) => c.body.operation && c.body.operation.airConOperationMode === 'POWER_ON').length, 2, '204호 2대 켜짐');
+  assert.ok(ctl.some((c) => c.body.temperature && c.body.temperature.targetTemperature === 26));
+  assert.equal(ctl.filter((c) => c.body.airFlow && c.body.airFlow.windStrength === 'AUTO').length, 2);
+  assert.ok(r.log.every((l) => l.room === 'r204'), '203호 등은 일정이 없으니 그대로');
+  const cold = makeWorld({ nowMin: k.nowMin, items: [], temps: { r204: 23 }, power: { '204호 스크린측': 'POWER_ON', '204호 입구측': 'POWER_ON' } });
+  const r2 = await withWorld(cold, () => tickAuto({ ...ENV, STATE: mkKV() }, cold.fetchFn, k.now));
+  assert.equal(r2.log.length, 2); assert.ok(r2.log.every((l) => /끄기/.test(l.do)));
+  const mid = makeWorld({ nowMin: k.nowMin, items: [], temps: { r204: 26 }, power: { '204호 스크린측': 'POWER_ON' } });
+  const r3 = await withWorld(mid, () => tickAuto({ ...ENV, STATE: mkKV() }, mid.fetchFn, k.now));
+  assert.equal(r3.log.length, 0, '24~28 사이는 그대로');
+});
+
+await t('204호 점검은 30분 간격(정각·30분)에만 LG를 부른다', async () => {
+  for (const [hm, expectCalls] of [['14:10', false], ['14:30', true], ['15:00', true], ['15:20', false]]) {
+    const k = at(hm); const w = makeWorld({ nowMin: k.nowMin, items: [] });
+    await withWorld(w, () => tickAuto({ ...ENV, STATE: mkKV() }, w.fetchFn, k.now));
+    assert.equal(w.calls.some((c) => /state$/.test(c.url)), expectCalls, hm);
+  }
+});
+
+await t('자동·수동 제어와 오류가 로그에 남고, /api/logs 로 종류별로 볼 수 있다', async () => {
+  const kv = mkKV(); const env = { ...ENV, STATE: kv };
+  const k = at('14:00');
+  const w = makeWorld({ nowMin: k.nowMin, items: [], temps: { r204: 29 } });
+  // 한 대는 제어가 실패하도록
+  const real = w.fetchFn; let failed = false;
+  w.fetchFn = async function (url, o) { if (!failed && /control$/.test(url) && JSON.parse(o.body).temperature) { failed = true; return new Response('{"error":"x"}', { status: 500 }); } return real.call(undefined, url, o); };
+  await withWorld(w, () => tickAuto(env, w.fetchFn, k.now));
+  const call = async (path, body) => (await worker.fetch(new Request('https://x' + path, { method: body ? 'POST' : 'GET', headers: { 'x-app-password': 'pw' }, body: body ? JSON.stringify(body) : undefined }), env)).json();
+  globalThis.fetch = w.fetchFn;
+  try {
+    await call('/api/control', { deviceIds: ['dev0'], action: 'off' });
+    const auto = await call('/api/logs?kind=auto'), man = await call('/api/logs?kind=manual'), err = await call('/api/logs?kind=error');
+    assert.ok(auto.logs.length >= 2 && auto.logs.every((x) => x.kind === 'auto'));
+    assert.ok(auto.logs.some((x) => /냉방 켜기/.test(x.what) && x.res === 'ok'));
+    assert.equal(man.logs.length, 1); assert.equal(man.logs[0].what, '끄기');
+    assert.equal(err.logs.length, 1); assert.equal(err.logs[0].res, 'fail'); assert.match(err.logs[0].t, /^2026-10-27 14:00$/);
+  } finally { globalThis.fetch = null; }
+});
+
+await t('한 번에 LG 호출이 너무 많아지면 일부를 다음 점검으로 미룬다', async () => {
+  const kv = mkKV(); const env = { ...ENV, STATE: kv };
+  const k = at('09:40');
+  const items = ['B101호', '2F 201호', '2F 202호', '2F 203호', '2F 205호', '건강측정실', '치유장비실', '건강증진실2'].map((l) => item(l, '10:00', '11:00'));
+  const w = makeWorld({ nowMin: k.nowMin, items, temps: { b101: 30, r201: 30, r202: 30, r203: 30, r205: 30, b102: 30, hp1: 30, hp2: 30 } });
+  const r = await withWorld(w, () => runAuto(env, w.fetchFn, k.now));
+  assert.ok(r.deferred > 0, '미룬 조치가 있어야 함');
+  assert.ok(w.calls.length <= 50, '요청 50회 이내: ' + w.calls.length);
+  assert.equal(kv.m.retry, '1');
+});
+
+await t('에어컨 기능표(/api/profile)가 지원 항목을 풀어서 보여 준다', async () => {
+  const w = makeWorld({});
+  const real = w.fetchFn;
+  w.fetchFn = async function (url, o) { if (/\/profile$/.test(url)) return new Response(JSON.stringify({ response: { property: { airFlow: { windStrength: { type: 'enum', mode: ['r', 'w'], value: { w: ['LOW', 'MID', 'HIGH'] } } } } } }), { status: 200 }); return real.call(undefined, url, o); };
+  const j = await withWorld(w, async () => (await worker.fetch(new Request('https://x/api/profile', { headers: { 'x-app-password': 'pw' } }), ENV)).json());
+  assert.equal(j.ok, true); assert.equal(j.items[0].path, 'airFlow.windStrength'); assert.match(j.items[0].value, /MID/);
 });
 
 await t('LG가 막혀도 로그인(ping)은 되고, 저장값이 없으면 에어컨 없이 방 구성만 보여준다', async () => {

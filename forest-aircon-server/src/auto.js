@@ -5,28 +5,30 @@ import { timedMoment } from './rules.js';
 // roomItems: 그 방의 오늘 일정 / allItems: 오늘 전체 일정 / devices: [{id, power, mode, cur, target}]
 export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
   const none = (state, reason, temp = null) => ({ state, reason, temp, actions: [] });
-  if (!roomItems.length) return none('none', '오늘 일정 없음 — 자동 제어 안 함');
+  const always = !!cfg.ALWAYS_COOL;   // 프로그램과 상관없이 더우면 냉방(예: 204호)
+  if (!roomItems.length && !always) return none('none', '오늘 일정 없음 — 자동 제어 안 함');
 
   const spans = roomItems.map((it) => spanOf(it, allItems));
   const active = spans.some((s) => s.s <= nowMin && nowMin < s.e);
   const soon = spans.some((s) => s.s > nowMin && s.s - nowMin <= cfg.PRE_MIN);
-  const lastEnd = Math.max(...spans.map((s) => s.e));
-  const allDone = spans.every((s) => s.e <= nowMin);
+  const lastEnd = spans.length ? Math.max(...spans.map((s) => s.e)) : 0;
+  const allDone = spans.length > 0 && spans.every((s) => s.e <= nowMin);
 
   const usable = devices.filter((d) => d.power);
-  if (!usable.length) return none(active ? 'active' : soon ? 'soon' : 'idle', '제어할 수 있는 에어컨 없음');
+  const baseState = active ? 'active' : soon ? 'soon' : 'idle';
+  if (!usable.length) return none(baseState, '제어할 수 있는 에어컨 없음');
 
   const temps = usable.map((d) => d.cur).filter((v) => typeof v === 'number');
   const temp = temps.length ? Math.round((temps.reduce((a, b) => a + b, 0) / temps.length) * 10) / 10 : null;
 
-  if (active || soon) {
-    const state = active ? 'active' : 'soon';
+  if (active || soon || always) {
+    const state = baseState;
     if (temp === null) return none(state, '방 온도를 읽지 못해 제어 안 함');
     const actions = [];
     if (temp >= cfg.HOT_ON) {
       for (const d of usable) {
         if (!(d.power === 'ON' && d.mode === 'COOL')) {
-          actions.push({ deviceId: d.id, power: 'ON', mode: 'COOL', temp: cfg.COOL_TARGET, why: '냉방 켜기' });
+          actions.push({ deviceId: d.id, power: 'ON', mode: 'COOL', temp: cfg.COOL_TARGET, wind: 'AUTO', why: '냉방 켜기' });
         }
       }
       return { state, temp, actions, reason: `방 온도 ${temp}° ≥ ${cfg.HOT_ON}° → 냉방(${cfg.COOL_TARGET}°)` };
@@ -59,7 +61,7 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
 //  · 점검 구간 안에서는 30분마다 한 번(매시 :00, :30 부근)
 //  · 그리고 «중요한 순간»(미리 켜기 시작, 시작, 종료 후 끄기)이 이번 5분 안에 있으면 바로 한 번
 export const AUTO_INTERVAL_MIN = 30, AUTO_WINDOW_MIN = 60, TICK_MIN = 5;
-export function shouldCheckLG({ by, allItems, nowMin, settingsOf, graceMin }) {
+export function shouldCheckLG({ by, allItems, nowMin, settingsOf, graceMin, alwaysKeys = [] }) {
   const tick = nowMin - (nowMin % TICK_MIN);
   const onGrid = nowMin % AUTO_INTERVAL_MIN < TICK_MIN;
   let inWindow = false;
@@ -75,6 +77,7 @@ export function shouldCheckLG({ by, allItems, nowMin, settingsOf, graceMin }) {
     if (nowMin >= first - Math.max(AUTO_WINDOW_MIN, st.pre) && nowMin < last + graceMin + AUTO_INTERVAL_MIN) inWindow = true;
   }
   if (inWindow && onGrid) return { run: true, why: '점검 구간 정기 확인' };
+  if (onGrid && alwaysKeys.some((k) => settingsOf(k).enabled)) return { run: true, why: '상시 냉방 방 정기 확인(30분)' };
   const tm = timedMoment(nowMin);   // 시각 규칙(09·10·20·21시, 비품실 매시 확인)
   if (tm) return { run: true, why: tm, supplyOnly: tm.startsWith('비품실') };
   return { run: false, why: inWindow ? '점검 구간 — 다음 정기 확인까지 대기' : '점검 구간 아님' };

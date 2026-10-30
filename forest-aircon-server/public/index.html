@@ -217,6 +217,32 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
   .tabs{max-width:520px}
 }
 
+
+/* 자동·수동 로그, 오류 목록, 에어컨 기능표 — 앱 맨 아래 */
+.logBtns{align-items:center;display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:6px 0 4px}
+.lb{min-height:0;height:auto;line-height:1.2;width:auto;flex:0 0 auto;font:inherit;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.lb.err{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.lb .n{background:var(--bad);color:#fff;border-radius:999px;font-size:11px;padding:0 6px;min-width:18px;text-align:center;line-height:18px}
+#logd{width:min(94vw,560px);padding:0;overflow:hidden}
+#logd[open]{display:flex;flex-direction:column;max-height:86vh}
+#logd .dh{display:flex;align-items:center;gap:10px;padding:14px 16px 6px}#logd .dh h3{flex:1;margin:0}
+#logd .x{border:0;background:var(--bg);width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;color:var(--ink)}
+#logd .dsub{padding:0 16px 10px;font-size:12.5px;color:var(--mute)}
+#logd .bar{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 10px;align-items:center}
+#logd .seg{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+#logd .seg button{font:inherit;font-size:12.5px;font-weight:600;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 11px;cursor:pointer}
+#logd .seg button[aria-pressed="true"]{background:var(--chip);border-color:var(--brand);color:var(--brand)}
+#logd .dl{font:inherit;font-size:13px;font-weight:800;border:0;background:var(--brand);color:var(--brand-ink);border-radius:10px;padding:8px 13px;cursor:pointer}
+#logd .list{overflow:auto;padding:0 16px 14px;display:flex;flex-direction:column;gap:6px;min-height:120px}
+#logd .row{border:1px solid var(--line);border-radius:12px;padding:9px 11px;display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;background:var(--bg)}
+#logd .row .t{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap}
+#logd .row .m{font-size:14px;font-weight:700;min-width:0}
+#logd .row .d{grid-column:2;font-size:12.5px;color:var(--mute);min-width:0;overflow-wrap:anywhere}
+#logd .tag{display:inline-block;font-size:11px;font-weight:800;border-radius:6px;padding:1px 6px;margin-right:6px;vertical-align:1px}
+#logd .tag.ok{background:var(--chip);color:var(--ok)}#logd .tag.skip{background:#f5e8c6;color:var(--warn)}#logd .tag.fail{background:#f6dedb;color:var(--bad)}
+#logd .row.fail{border-color:color-mix(in srgb,var(--bad) 50%,var(--line))}
+#logd .empty{color:var(--mute);text-align:center;padding:26px 0;font-size:13.5px}
+#logd .cap{font-size:12.5px;line-height:1.55}#logd .cap code{font-size:12px;word-break:break-all}
 .ver{margin:18px 0 6px;text-align:center;font-size:11.5px;color:var(--mute)}
 .others{margin-top:6px;font-size:13px;color:var(--mute);line-height:1.5}
 .alerts{margin:10px 0 0}
@@ -268,6 +294,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   <div id="plan" class="plan"></div>
   <div id="rooms"></div>
   <div id="others" class="others"></div>
+  <div class="logBtns"><button class="lb" id="bMan">수동 로그</button><button class="lb" id="bAuto">자동제어 로그</button><button class="lb err" id="bErr">오류 목록 <span class="n" id="nErr" hidden>0</span></button><button class="lb" id="bCap">에어컨 기능 확인</button></div>
   <footer class="ver" id="ver"></footer>
 </main>
 
@@ -286,6 +313,12 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
     <button data-a="off">끄기</button><button data-a="temp">온도만 바꾸기</button>
   </div>
   <button class="close" id="dvX">닫기</button>
+</dialog>
+<dialog id="logd" aria-labelledby="ldT">
+  <div class="dh"><h3 id="ldT"></h3><button class="x" id="ldX" aria-label="닫기">✕</button></div>
+  <div class="dsub" id="ldS"></div>
+  <div class="bar"><div class="seg" id="ldSeg" role="group" aria-label="보기 범위"></div><button class="dl" id="ldDl">파일로 저장 (CSV)</button></div>
+  <div class="list" id="ldList"></div>
 </dialog>
 <dialog id="info">
   <h3 id="infoT"></h3>
@@ -306,7 +339,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.7.1';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.8.0';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -358,6 +391,7 @@ async function load(first, fresh) {
     $('login').classList.add('hide'); $('app').classList.remove('hide');
     $('err').innerHTML = DATA.stale ? `<div class="err">${DATA.stale.ageSec == null ? 'LG 서버에서 에어컨 상태를 읽지 못했습니다(방 구성만 보여줍니다).' : 'LG 서버에서 새로 읽지 못해 ' + DATA.stale.ageSec + '초 전 값을 보여줍니다.'} ${esc(DATA.stale.reason)}</div>` : '';
     render();
+    if (first) loadErrBadge();
   } catch (e) {
     if (e.auth) throw e;
     if (!DATA) { if (first) throw e; }
@@ -613,6 +647,57 @@ function autoBoxHtml(r) {
   return `<div class="autoBox"><div class="tx">${line}<span class="std">${std}${r.customSettings ? '<span class="tagc">이 방 설정</span>' : ''}</span></div><button class="setBtn">자동 설정</button></div>`;
 }
 
+
+/* ── 로그 / 오류 목록 / 에어컨 기능표 ── */
+const LOGKIND = { manual: ['수동 로그', '이 앱에서 직접 켜고 끈 기록입니다.'], auto: ['자동제어 로그', '서버가 자동으로 켜고 끈 기록입니다.'], error: ['오류 목록', '제어에 실패했거나 LG 서버에서 오류가 난 기록만 모았습니다.'] };
+const LOGKIND_KO = { auto: '자동', manual: '수동', sys: '시스템' };
+let logKind = 'auto', logRange = '오늘', logRows = [];
+const logDay = (t) => String(t).slice(0, 10);
+const kstToday = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+function logFiltered() {
+  const today = kstToday(), wk = new Date(Date.now() + 9 * 3600e3 - 6 * 86400e3).toISOString().slice(0, 10);
+  return logRows.filter((x) => logRange === '전체' || (logRange === '오늘' ? logDay(x.t) === today : logDay(x.t) >= wk));
+}
+function drawLog() {
+  const [t, sub] = LOGKIND[logKind];
+  $('ldT').textContent = t; $('ldS').textContent = sub + ' 최신순, 최대 3000건(90일) 보관합니다.';
+  $('ldSeg').innerHTML = ['오늘', '최근 7일', '전체'].map((r) => `<button type="button" aria-pressed="${r === logRange}" data-r="${r}">${r}</button>`).join('');
+  const d = logFiltered();
+  $('ldList').innerHTML = d.length ? d.map((x) => {
+    const tag = x.res === 'ok' ? '<span class="tag ok">성공</span>' : x.res === 'fail' ? '<span class="tag fail">실패</span>' : '<span class="tag skip">건너뜀</span>';
+    const dev = [x.dev, x.note].filter(Boolean).map(esc).join(' — ');
+    return `<div class="row ${x.res === 'fail' ? 'fail' : ''}"><span class="t">${esc(String(x.t).slice(5))}</span><span class="m">${tag}${x.room ? esc(x.room) + ' · ' : ''}${esc(x.what)}</span>${dev ? `<span class="d">${dev}</span>` : ''}</div>`;
+  }).join('') : `<div class="empty">${logKind === 'error' ? '이 기간에 오류가 없습니다' : '이 기간에 기록이 없습니다'}</div>`;
+}
+async function openLog(kind) {
+  logKind = kind; logRange = '오늘'; logRows = []; $('ldList').innerHTML = '<div class="empty">불러오는 중…</div>'; drawLog(); $('ldDl').hidden = false; $('logd').showModal();
+  try { const r = await api('/api/logs?kind=' + kind); logRows = r.logs || []; if (!r.canStore) $('ldS').textContent = '기록을 저장하려면 서버에 KV(STATE)가 연결되어야 합니다.'; if (kind === 'error') setErrBadge(); drawLog(); }
+  catch (e) { $('ldList').innerHTML = `<div class="empty">불러오지 못했습니다: ${esc(e.message)}</div>`; }
+}
+function setErrBadge() { const n = logKind === 'error' ? logRows.filter((x) => logDay(x.t) === kstToday()).length : 0; $('nErr').textContent = n; $('nErr').hidden = !n; }
+const csvCell = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+function downloadLog() {
+  const head = ['시각', '구분', '방', '에어컨', '내용', '결과', '비고'];
+  const lines = [head.map(csvCell).join(',')].concat(logFiltered().map((x) => [x.t, LOGKIND_KO[x.kind] || x.kind, x.room, x.dev, x.what, x.res === 'ok' ? '성공' : x.res === 'fail' ? '실패' : '건너뜀', x.note].map(csvCell).join(',')));
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `냉난방_${LOGKIND[logKind][0].replace(/\s/g, '')}_${kstToday()}.csv`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function openCap() {
+  logKind = 'cap'; $('ldT').textContent = '에어컨 기능 확인'; $('ldS').textContent = 'LG 서버가 알려 주는, 이 에어컨이 실제로 지원하는 항목입니다(에어컨 1대 기준).';
+  $('ldSeg').innerHTML = ''; $('ldDl').hidden = true; $('ldList').innerHTML = '<div class="empty">LG 서버에서 불러오는 중…</div>'; $('logd').showModal();
+  try {
+    const r = await api('/api/profile');
+    $('ldS').textContent = `${r.alias} (${r.model || '모델 미상'}) 이 지원하는 항목입니다. 읽기(r)/쓰기(w) 표시 기준.`;
+    $('ldList').innerHTML = r.items.length ? r.items.map((i) => `<div class="row"><span class="t">${esc(i.mode)}</span><span class="m">${esc(i.path)}</span><span class="d cap">${esc(i.type)} · <code>${esc(i.value)}</code></span></div>`).join('') : '<div class="empty">항목이 없습니다</div>';
+  } catch (e) { $('ldList').innerHTML = `<div class="empty">불러오지 못했습니다: ${esc(e.message)}</div>`; }
+}
+$('bMan').onclick = () => openLog('manual'); $('bAuto').onclick = () => openLog('auto'); $('bErr').onclick = () => openLog('error'); $('bCap').onclick = openCap;
+$('ldX').onclick = () => $('logd').close();
+$('logd').addEventListener('click', (e) => { if (e.target === $('logd')) $('logd').close(); });
+$('ldSeg').onclick = (e) => { const b = e.target.closest('[data-r]'); if (b) { logRange = b.dataset.r; drawLog(); } };
+$('ldDl').onclick = downloadLog;
+async function loadErrBadge() { try { const r = await api('/api/logs?kind=error'); const n = (r.logs || []).filter((x) => logDay(x.t) === kstToday()).length; $('nErr').textContent = n; $('nErr').hidden = !n; } catch {} }
 function renderAlerts() {
   const a = (DATA && DATA.alerts) || [];
   $('alerts').innerHTML = a.length
