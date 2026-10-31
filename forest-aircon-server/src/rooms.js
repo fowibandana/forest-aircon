@@ -12,13 +12,19 @@ export const PLACES = {
   supply:  { name: '비품실',                  short: '비품실',      floor: 'B1', sched: false },
   // 1층
   lobby1:  { name: '1F 로비',                 short: '1F 로비',     floor: '1F', sched: false },
-  hp1:     { name: '건강증진실 1 (치유장비실)', short: '건강증진실 1', floor: '1F', sched: true },   // ThinQ 앱에서는 «치유장비실»로 등록된 에어컨 4대
-  hp2:     { name: '건강증진실 2',             short: '건강증진실 2', floor: '1F', sched: true },
+  hp1:     { name: '건강증진실 1 (치유장비실)', short: '건강증진실 1', floor: '1F', sched: true,
+             sensors: ['치유장비실1', '치유장비실4'],   // 방 온도는 양끝(1번·4번) 에어컨의 값으로
+             groups: [{ label: '1·2번', names: ['치유장비실1', '치유장비실2'] }, { label: '3·4번', names: ['치유장비실3', '치유장비실4'] }] },   // 켤 때는 한 묶음씩 번갈아   // ThinQ 앱에서는 «치유장비실»로 등록된 에어컨 4대
+  hp2:     { name: '건강증진실 2',             short: '건강증진실 2', floor: '1F', sched: true,
+             sensors: ['건강증진실21', '건강증진실24'],
+             groups: [{ label: '1·2번', names: ['건강증진실21', '건강증진실22'] }, { label: '3·4번', names: ['건강증진실23', '건강증진실24'] }] },
   // noapi: LG 서버가 이 에어컨의 상태 읽기·제어를 지원하지 않는다(ThinQ 앱에서만 조작). 일정은 보여주되 제어하지 않는다.
   haearim: { name: '해아림홀',                short: '해아림홀',     floor: '1F', sched: true, noapi: true },
   // 백운홀: 한 개의 넓은 방. 난방도 되지만 모두 묶여 있어 가끔 냉방이 난방으로 바뀜 → 바뀌면 오류·알림. 일정 연동 없음(수동).
   // dummies: ThinQ 에 없는 자리(도면에 «없음»으로만 표시)
-  baekun:  { name: '백운홀',                  short: '백운홀',       floor: '백운홀', sched: false, heat: true, dummies: ['강사옆측'] },
+  baekun:  { name: '백운홀',                  short: '백운홀',       floor: '백운홀', sched: false, heat: true, dummies: ['강사옆측'],
+             sensors: ['강사측', '입구측'],   // 방 온도: 강사측 쪽 + 입구 쪽 두 곳
+             groups: [{ label: '강사측 열', names: ['강사측', '강사옆측'] }, { label: '2열', names: ['강사측2열', '강사옆측2열'] }, { label: '입구측 열', names: ['입구옆측', '입구측'] }] },
   // 2층
   r201:    { name: '201호 (음파실)',           short: '201호',       floor: '2F', sched: true },
   r202:    { name: '202호 (입식다도실)',       short: '202호',       floor: '2F', sched: true },
@@ -62,7 +68,7 @@ export const ALIAS_PLACE = {
   '도로측1': LATER, '도로측2': LATER, '도로측3': LATER, '도로측4': LATER,
 };
 
-function aliasCore(alias) {
+export function aliasCore(alias) {
   const s = String(alias || '');
   const m = /\(([^()]*)\)\s*$/.exec(s);
   return (m ? m[1] : s).replace(/\s+/g, '');

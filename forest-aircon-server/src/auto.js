@@ -19,7 +19,9 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
   const baseState = active ? 'active' : soon ? 'soon' : 'idle';
   if (!usable.length) return none(baseState, '제어할 수 있는 에어컨 없음');
 
-  const temps = usable.map((d) => d.cur).filter((v) => typeof v === 'number');
+  // 방 온도: 센서로 지정한 에어컨(양끝 등)의 값이 있으면 그 평균, 없으면 전체 평균
+  const sdev = cfg.SENSOR_IDS ? usable.filter((d) => cfg.SENSOR_IDS.has(d.id) && typeof d.cur === 'number') : [];
+  const temps = (sdev.length ? sdev : usable).map((d) => d.cur).filter((v) => typeof v === 'number');
   const temp = temps.length ? Math.round((temps.reduce((a, b) => a + b, 0) / temps.length) * 10) / 10 : null;
 
   if (active || soon || always) {

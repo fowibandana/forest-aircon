@@ -1,6 +1,6 @@
 import { CONFIG, ROOM_OVERRIDES, ALWAYS_COOL_ROOMS, WIND_DEFAULT } from './config.js';
 import { loadLogs, addLogs, pickLogs, kst } from './logs.js';
-import { PLACES, FLOOR_ORDER, placeOfDevice } from './rooms.js';
+import { PLACES, FLOOR_ORDER, placeOfDevice, aliasCore } from './rooms.js';
 import { fetchSchedule, itemsByRoom, summarizeRoom } from './schedule.js';
 import { Thinq } from './thinq.js';
 import { decideRoom, shouldCheckLG } from './auto.js';
@@ -72,6 +72,26 @@ export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, know
 
 const heatOn = (env) => env && env.HEAT_ENABLED === '1';   // 난방은 중앙제어로 막혀 있으므로 기본은 꺼짐
 
+// 방 온도를 잴 «센서» 에어컨(양끝 등). 지정이 없으면 null(전체 평균)
+function sensorIdsOf(key, devs) {
+  const names = (PLACES[key] || {}).sensors; if (!names) return null;
+  const ids = devs.filter((d) => names.includes(aliasCore(d.alias))).map((d) => d.id);
+  return ids.length ? new Set(ids) : null;
+}
+// 켤 때 «한 묶음씩 번갈아»: 방의 묶음(groups) 중 이번 순서의 묶음만 켠다(순서는 KV 'rot' 에 기억)
+const groupIdx = (key, d) => { const gs = (PLACES[key] || {}).groups; return gs ? gs.findIndex((g) => g.names.includes(aliasCore(d.alias))) : -1; };
+async function loadRot(env) { if (!env.STATE) return {}; try { return JSON.parse(await env.STATE.get('rot') || '{}') || {}; } catch { return {}; } }
+async function saveRot(env, rot) { if (env.STATE) { try { await env.STATE.put('rot', JSON.stringify(rot)); } catch {} } }
+// cands: 켜려는 [{id, alias}] → 이번에 켤 묶음 {keep:Set(id), label} | null(묶음이 하나 이하라 제한 없음)
+function pickGroup(key, cands, rot) {
+  const gs = (PLACES[key] || {}).groups; if (!gs || gs.length < 2) return null;
+  const have = new Set(cands.map((d) => groupIdx(key, d)).filter((i) => i >= 0));
+  if (have.size < 2) { if (!have.size) return null; const g = [...have][0]; rot[key] = (g + 1) % gs.length; return { keep: new Set(cands.filter((d) => groupIdx(key, d) === g || groupIdx(key, d) < 0).map((d) => d.id)), label: gs[g].label, single: true }; }
+  const start = rot[key] || 0;
+  for (let k = 0; k < gs.length; k++) { const g = (start + k) % gs.length; if (have.has(g)) { rot[key] = (g + 1) % gs.length; return { keep: new Set(cands.filter((d) => groupIdx(key, d) === g || groupIdx(key, d) < 0).map((d) => d.id)), label: gs[g].label }; } }
+  return null;
+}
+
 function evaluate(sched, devices, smap = {}, heat = false, retry = false) {
   const by = itemsByRoom(sched.items);
   const out = {}, cfgs = {};
@@ -85,7 +105,7 @@ function evaluate(sched, devices, smap = {}, heat = false, retry = false) {
       out[key] = { state: 'off', reason: '이 방은 자동 제어를 꺼 두었습니다', temp: temps.length ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10 : null, actions: [] };
       continue;
     }
-    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: { ...cfgOf(settings, heat), ALWAYS_COOL: always, RETRY_ON: retry } });
+    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: { ...cfgOf(settings, heat), ALWAYS_COOL: always, RETRY_ON: retry, SENSOR_IDS: sensorIdsOf(key, devs) } });
   }
   return { by, decisions: out, cfgs };
 }
@@ -138,7 +158,7 @@ async function statusResponse(env, fresh = false) {
   const floors = FLOOR_ORDER.map((f) => ({
     floor: f,
     rooms: Object.entries(PLACES).filter(([, r]) => r.floor === f).map(([key, r]) => ({
-      key, name: r.name, short: r.short, scheduled: r.sched, noapi: !!r.noapi, heat: !!r.heat, settings: cfgs[key].settings, customSettings: cfgs[key].custom,
+      key, name: r.name, short: r.short, scheduled: r.sched, noapi: !!r.noapi, heat: !!r.heat, groups: (r.groups || []).map((g) => g.label), tempIds: [...(sensorIdsOf(key, snap.devices.filter((d) => d.room === key)) || [])], settings: cfgs[key].settings, customSettings: cfgs[key].custom,
       schedule: summarizeRoom(by[key] || [], snap.sched.items, snap.sched.nowMin),
       devices: [...snap.devices.filter((d) => d.room === key).map(pub), ...(r.dummies || []).map((n) => ({ id: '', alias: '에어컨(' + n + ')', unsupported: true, dummy: true, ok: false, error: null, power: null, mode: null, cur: null, target: null }))],
       temp: decisions[key].temp,
@@ -160,7 +180,7 @@ async function statusResponse(env, fresh = false) {
 
 // 수동 제어: { deviceIds:[...], action:'cool'|'heat'|'off'|'temp', value? }
 async function controlResponse(env, body) {
-  const ids = Array.isArray(body.deviceIds) ? body.deviceIds.map(String) : [];
+  let ids = Array.isArray(body.deviceIds) ? body.deviceIds.map(String) : [];
   const action = String(body.action || '');
   if (!ids.length) return json({ ok: false, error: '대상 에어컨이 없습니다' }, 400);
   if (ids.length > 12) return json({ ok: false, error: '한 번에 12대까지만 제어합니다' }, 400);
@@ -181,6 +201,17 @@ async function controlResponse(env, body) {
   const roomKeyOf = new Map(acs.map((d) => [d.id, deviceRoom(d)]));
   // 난방: 중앙제어로 막혀 있어 기본은 거절. 단 백운홀(heat:true)은 난방이 되므로 허용
   if (action === 'heat' && !heatOn(env) && ids.some((id) => !(PLACES[roomKeyOf.get(id)] || {}).heat)) return json({ ok: false, error: '난방은 현재 중앙제어로 막혀 있어 사용하지 않습니다' }, 400);
+  // 방 전체 켜기: 4대 방·백운홀은 한 묶음(1·2번 / 3·4번 / 열)씩 번갈아 켠다
+  const picked = [];
+  if (action === 'cool' || action === 'heat') {
+    const rot = await loadRot(env), accById = new Map(acs.map((d) => [d.id, d]));
+    for (const key of new Set(ids.map((id) => roomKeyOf.get(id)).filter(Boolean))) {
+      const cands = ids.filter((id) => roomKeyOf.get(id) === key && accById.has(id)).map((id) => accById.get(id));
+      const pg = pickGroup(key, cands, rot);
+      if (pg) { const drop = new Set(cands.filter((d) => !pg.keep.has(d.id)).map((d) => d.id)); ids = ids.filter((id) => !drop.has(id)); picked.push(`${PLACES[key].short} ${pg.label}`); }
+    }
+    if (picked.length) await saveRot(env, rot);
+  }
   const results = [];
   for (const id of ids) {
     if (!known.has(id)) { results.push({ id, ok: false, error: '제어할 수 없는 에어컨입니다(미등록·후순위·API 미지원)' }); continue; }
@@ -211,7 +242,7 @@ async function controlResponse(env, body) {
       results.forEach((r) => { if (bad.some((b) => b.id === r.id)) { r.ok = false; r.error = '설정 후 모드가 바뀜(MODE_MISMATCH)'; } });
     }
   }
-  return json({ ok: results.every((r) => r.ok), results });
+  return json({ ok: results.every((r) => r.ok), results, picked });
 }
 
 // 방(또는 층) 단위 새로고침: 지정한 에어컨의 상태만 읽는다(목록 조회 없음, 저장된 목록으로 허용 여부 확인).
@@ -328,11 +359,24 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
   for (const [id, a] of todo) if (a.room === 'supply' && a.power === 'OFF') todo.delete(id);
   for (const a of todo.values()) if (a.power === 'ON' && a.mode === 'COOL') { if (typeof a.temp !== 'number') a.temp = CONFIG.COOL_TARGET; a.wind = a.wind || WIND_DEFAULT; }
 
+  // 켤 때는 한 묶음씩 번갈아(4대 방·백운홀)
+  const rot = await loadRot(env); let rotUsed = false;
+  const devById = new Map(snap.devices.map((d) => [d.id, d]));
+  for (const key of Object.keys(PLACES)) {
+    const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON');
+    if (!ons.length) continue;
+    const pg = pickGroup(key, ons.map((a) => devById.get(a.deviceId)).filter(Boolean), rot);
+    if (!pg) continue;
+    for (const a of ons) { if (pg.keep.has(a.deviceId)) a.note = '번갈아 켜기: ' + pg.label; else todo.delete(a.deviceId); }
+    rotUsed = true;
+  }
+  if (rotUsed && live) await saveRot(env, rot);
+
   const log = [];
   let deferred = 0;
   for (const a of todo.values()) {
     const line = { room: a.room, device: a.deviceId.slice(0, 8), do: a.why, reason: a.reason, live };
-    const e = { kind: 'auto', room: nameOf(a.room), dev: aliasOf.get(a.deviceId) || a.deviceId.slice(0, 8), what: a.why, note: a.reason && a.reason !== a.why ? a.reason : '' };
+    const e = { kind: 'auto', room: nameOf(a.room), dev: aliasOf.get(a.deviceId) || a.deviceId.slice(0, 8), what: a.why, note: [a.reason && a.reason !== a.why ? a.reason : '', a.note || ''].filter(Boolean).join(' · ') };
     if (live) {
       if (snap.thinq && snap.thinq.calls + costOf(a) > SUBREQ_LIMIT) { deferred++; line.result = 'deferred'; e.res = 'skip'; e.note = '요청 한도 때문에 다음 점검으로 미룸'; }
       else {
