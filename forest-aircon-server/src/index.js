@@ -110,7 +110,7 @@ function evaluate(sched, devices, smap = {}, heat = false, retry = false) {
   return { by, decisions: out, cfgs };
 }
 
-const pub = (d) => ({ id: d.id, alias: d.alias, unsupported: !!(d.room && PLACES[d.room] && PLACES[d.room].noapi), ok: !!d.ok, error: d.error || null, power: d.power || null, mode: d.mode || null, cur: d.cur ?? null, target: d.target ?? null });
+const pub = (d) => ({ id: d.id, alias: d.alias, unsupported: !!(d.room && PLACES[d.room] && PLACES[d.room].noapi), ok: !!d.ok, error: d.error || null, power: d.power || null, mode: d.mode || null, cur: d.cur ?? null, target: d.target ?? null, wind: d.wind || null });
 
 async function isPaused(env) {
   if (!env.STATE) return false;
@@ -215,14 +215,16 @@ async function controlResponse(env, body) {
   const results = [];
   for (const id of ids) {
     if (!known.has(id)) { results.push({ id, ok: false, error: '제어할 수 없는 에어컨입니다(미등록·후순위·API 미지원)' }); continue; }
+    let before = null;
+    if (action === 'wind') { try { before = (await thinq.getState(id)).wind || null; } catch {} }
     try {
       const warn = await applyOne(thinq, id, action === 'cool' ? { power: 'ON', mode: 'COOL', temp: body.value ? Number(body.value) : CONFIG.COOL_TARGET, wind: WIND_DEFAULT }
         : action === 'heat' ? { power: 'ON', mode: 'HEAT', temp: body.value ? Number(body.value) : undefined }
         : action === 'off' ? { power: 'OFF' } : action === 'wind' ? { wind: value } : { temp: value });
       let bad = null;
-      if (action === 'wind') {   // 보낸 뒤 실제로 바뀌었는지 읽어서 확인(기종이 해당 단계를 지원하지 않으면 값이 그대로)
+      if (action === 'wind') {   // 보낸 뒤 읽어서 «아무 변화 없이 다른 값 그대로»일 때만 실패로 본다(기기가 값을 다른 이름으로 보고해도 오탐 없게)
         await sleep(1500);
-        try { const st = await thinq.getState(id); if (st.wind && st.wind !== value) bad = `기기가 ${WINDS[value]} 단계를 받아들이지 않았습니다(현재 ${WINDS[st.wind] || st.wind}) — 이 기종은 지원하지 않을 수 있음`; } catch {}
+        try { const st = await thinq.getState(id); if (st.wind && st.wind !== value && st.wind === before) bad = `기기가 ${WINDS[value]} 단계를 받아들이지 않았습니다(현재 ${WINDS[st.wind] || st.wind} 그대로) — 이 기종은 지원하지 않을 수 있음`; } catch {}
       }
       results.push(bad ? { id, ok: false, error: bad, code: 'WIND_NOT_APPLIED' } : { id, ok: true, warn });
     } catch (e) { results.push({ id, ok: false, error: e.message, code: e.lgCode || (e.status > 0 ? String(e.status) : '') }); }
@@ -270,7 +272,7 @@ async function refreshResponse(env, body) {
     for (const r of out) { const i = cache.devices.findIndex((d) => d.id === r.id); if (i >= 0 && r.ok) cache.devices[i] = { ...cache.devices[i], ...r, ok: true, error: undefined, skipped: undefined }; }
     if (env.STATE) { try { await env.STATE.put(CACHE_KEY, JSON.stringify(cache)); } catch {} }
   }
-  return json({ ok: true, devices: out.map((r) => ({ id: r.id, ok: !!r.ok, error: r.error || null, power: r.power || null, mode: r.mode || null, cur: r.cur ?? null, target: r.target ?? null })) });
+  return json({ ok: true, devices: out.map((r) => ({ id: r.id, ok: !!r.ok, error: r.error || null, power: r.power || null, mode: r.mode || null, cur: r.cur ?? null, target: r.target ?? null, wind: r.wind || null })) });
 }
 
 // 에어컨 한 대에 켜기/모드/온도/바람세기를 적용한다. 반환: 경고 목록(바람세기처럼 «실패해도 켜기는 된» 항목)
