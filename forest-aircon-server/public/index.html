@@ -347,7 +347,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.11.1';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.11.2';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -613,7 +613,7 @@ function planHtml(F) {
         const hx = x + w * cols[0] - 21; over += doorSvg('b', hx - w * .28, y, w, h) + `<text class="t3" style="font-size:19px" x="${f1(hx + 78)}" y="${f1(y + h - 12)}">입구</text>`;
       } else if (key === 'haearim' && n >= 2) {
         // 해아림홀: 앞은 건강증진실2 쪽 벽(위), 뒤는 치유장비실 쪽 벽(아래)에 붙여서
-        const yy = [y + h * .2, y + h * .8], px = x + 46;
+        const yy = [y + h * .13, y + h * .87], px = x + 46;
         devs.slice(0, 2).forEach((d, i) => { txt += acSvg(px, yy[i], acClass(d), d.unsupported || !d.id ? '' : d.id) + `<text class="t3 cap" x="${f1(px)}" y="${f1(yy[i] + 36)}">${i === 0 ? '앞' : '뒤'}</text>`; });
       } else if (key === 'b1lobby' && n >= 2) {
         // 로비: 글자는 가운데, 에어컨은 위·아래 두 구역에 따로(글자를 침범하지 않게)
