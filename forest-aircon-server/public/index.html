@@ -69,7 +69,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .rTools button.busyb,.floorBar button.busyb{opacity:.5}
 .rTools button.busyb .ico{animation:sp 1s linear infinite}
 .ic .ico{margin:auto}
-.mbtns.noheat button[data-a="temp"]{grid-column:1/-1}
+.mbtns.noheat button[data-a="temp"]{grid-column:auto}
 .infoRows{display:flex;flex-direction:column;gap:9px;margin:6px 0 14px;font-size:14px;line-height:1.5}
 .infoRows .k{display:block;font-size:11.5px;font-weight:700;color:var(--mute);letter-spacing:.02em;margin-bottom:1px}
 .infoRows b{font-weight:700}
@@ -310,9 +310,15 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
   <div class="stepper"><button id="dvM">−</button><output id="dvV"></output><button id="dvP">+</button></div>
   <div class="mbtns">
     <button class="cool" data-a="cool">냉방 켜기</button><button class="heat" data-a="heat">난방 켜기</button>
-    <button data-a="off">끄기</button><button data-a="temp">온도만 바꾸기</button>
+    <button data-a="off">끄기</button><button data-a="temp">온도만 바꾸기</button><button data-a="wind">바람 세기</button>
   </div>
   <button class="close" id="dvX">닫기</button>
+</dialog>
+<dialog id="wind">
+  <h3 id="wT">바람 세기</h3>
+  <p id="wP"></p>
+  <div class="mbtns" id="wBtns"><button data-w="AUTO">자동</button><button data-w="LOW">약</button><button data-w="MID">중</button><button data-w="HIGH">강</button></div>
+  <button class="close" id="wX">닫기</button>
 </dialog>
 <dialog id="logd" aria-labelledby="ldT">
   <div class="dh"><h3 id="ldT"></h3><button class="x" id="ldX" aria-label="닫기">✕</button></div>
@@ -339,7 +345,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.8.1';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.9.0';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -736,7 +742,7 @@ function render() {
       body = `<div class="tiles">${r.devices.map((d) => tileHtml(d)).join('')}</div><div class="noac">이 에어컨은 LG 서버가 상태 확인·제어를 지원하지 않아 이 화면에서는 조작할 수 없습니다. 현장에서 직접(리모컨 등) 조작해 주세요. (일정은 그대로 표시됩니다)</div>`;
     } else if (r.devices.length) {
       body = `<div class="tiles">${rdev.map((d) => tileHtml(d)).join('')}</div>
-        <div class="roomAct" data-room="${r.key}"><button class="cool" data-a="cool">방 전체 냉방</button>${heatOn() ? '<button class="heat" data-a="heat">방 전체 난방</button>' : ''}<button data-a="off">방 전체 끄기</button></div>`;
+        <div class="roomAct" data-room="${r.key}"><button class="cool" data-a="cool">방 전체 냉방</button>${heatOn() ? '<button class="heat" data-a="heat">방 전체 난방</button>' : ''}<button data-a="off">방 전체 끄기</button><button data-a="wind">바람 세기</button></div>`;
     } else body = '<div class="noac">등록된 에어컨이 없습니다</div>';
     const rids = r.devices.filter((x) => !x.unsupported).map((x) => x.id);
     return `<article class="room ${r.noapi ? 'na' : ''}" id="room-${r.key}"><div class="rHead"><div class="rName">${esc(r.name)}</div>
@@ -772,8 +778,15 @@ async function confirmAct(title, text, ids, action, value) {
   if (!(await dialog(title, text))) return;
   await run(ids, action, value);
 }
+function pickWind(title, ids) {
+  if (!ids.length) { toast('대상 에어컨이 없습니다'); return; }
+  const w = $('wind'); $('wT').textContent = title; $('wP').textContent = `${ids.length}대의 바람 세기만 바꿉니다(전원·모드·온도는 그대로).`;
+  w.querySelectorAll('[data-w]').forEach((b) => b.onclick = () => { w.close(); run(ids, 'wind', b.dataset.w); });
+  $('wX').onclick = () => w.close(); w.showModal();
+}
 async function onAct(room, a) {
   const ids = room.devices.filter((x) => !x.unsupported).map((x) => x.id);
+  if (a === 'wind') return pickWind(`${room.short} 바람 세기`, ids);
   const st = room.settings || {};
   if (a === 'cool' || a === 'heat') {
     const t = a === 'cool' ? (st.cool_target ?? 24) : (st.heat_target ?? 22), name = a === 'cool' ? '냉방' : '난방';
@@ -799,6 +812,7 @@ function openDev(room, d) {
   const dlg = $('dev');
   dlg.querySelectorAll('.mbtns button').forEach((b) => b.onclick = () => {
     const a = b.dataset.a; dlg.close();
+    if (a === 'wind') return pickWind(`${room.short} · ${posName(d.alias)} 바람 세기`, [d.id]);
     const val = a === 'cool' ? (touched ? v : (st.cool_target ?? v)) : a === 'heat' ? (touched ? v : (st.heat_target ?? v)) : v;
     run([d.id], a, a === 'off' ? undefined : val);
   });

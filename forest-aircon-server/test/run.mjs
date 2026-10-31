@@ -61,7 +61,7 @@ const realST = globalThis.setTimeout; globalThis.setTimeout = (f) => realST(f, 0
 console.log('자동 판단');
 const dev = (power, mode, cur) => ({ id: 'd' + Math.random(), power, mode, cur, target: 24 });
 await t('시작 20분 전 + 더움 → 냉방 켜기', () => {
-  const r = decideRoom({ roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin: 580, devices: [dev('OFF', 'COOL', 30.5), dev('OFF', 'COOL', 30.5)], cfg: CONFIG });
+  const r = decideRoom({ roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin: 575, devices: [dev('OFF', 'COOL', 30.5), dev('OFF', 'COOL', 30.5)], cfg: CONFIG });
   assert.equal(r.state, 'soon'); assert.equal(r.actions.length, 2); assert.equal(r.actions[0].mode, 'COOL'); assert.equal(r.actions[0].power, 'ON');
 });
 await t('시작 40분 전은 아직 안 함', () => {
@@ -77,7 +77,7 @@ await t('추워도 난방은 하지 않는다(중앙제어) — 켜 두면(HEAT_
 await t('기본 기준: 28° 이상 → 26° 냉방 켜기 / 24° 이하 → 끄기 / 그 사이는 가만히', () => {
   assert.equal(CONFIG.HOT_ON, 28); assert.equal(CONFIG.COOL_TARGET, 26); assert.equal(CONFIG.COOL_OFF, 24);
   const run = (temp, power) => decideRoom({ roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin: 610, devices: [dev(power, 'COOL', temp)], cfg: CONFIG });
-  const hot = run(28, 'OFF'); assert.equal(hot.actions[0].power, 'ON'); assert.equal(hot.actions[0].temp, 26);
+  const hot = decideRoom({ roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin: 575, devices: [dev('OFF', 'COOL', 28)], cfg: CONFIG }); assert.equal(hot.actions[0].power, 'ON'); assert.equal(hot.actions[0].temp, 26);
   assert.equal(run(27.5, 'OFF').actions.length, 0);
   assert.equal(run(25, 'ON').actions.length, 0);
   assert.equal(run(24, 'ON').actions[0].power, 'OFF');
@@ -141,8 +141,8 @@ await t('비밀번호 틀리면 401, 설정 없으면 503', async () => {
   assert.equal(w.calls.length, 0);
 });
 await t('자동(live): 203호 20분 전 + 더움 → 두 대 켜고 냉방·26도', async () => {
-  const w = makeWorld({ nowMin: 9 * 60 + 40, items: [item('2F 203호(명상실)', '10:00', '11:00')], temps: { r203: 30.5 } });
-  await withWorld(w, () => runAuto(ENV, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40))));
+  const w = makeWorld({ nowMin: 9 * 60 + 35, items: [item('2F 203호(명상실)', '10:00', '11:00')], temps: { r203: 30.5 } });
+  await withWorld(w, () => runAuto(ENV, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 35))));
   const ctl = w.calls.filter((c) => c.method === 'POST' && /control$/.test(c.url));
   assert.equal(ctl.length, 8); // 2대 × (전원, 모드, 온도, 바람세기)
   assert.deepEqual(ctl.slice(0, 4).map((c) => Object.keys(c.body)[0]), ['operation', 'airConJobMode', 'temperature', 'airFlow']);
@@ -158,8 +158,8 @@ await t('자동(live): 203호 20분 전 + 더움 → 두 대 켜고 냉방·26�
   assert.equal(w.calls.filter((c) => /jinan-schedule/.test(c.url)).length, 1, '일정은 한 번만 읽어야 함');
 });
 await t('자동(dry): 시험 모드는 제어 호출이 없다', async () => {
-  const w = makeWorld({ nowMin: 9 * 60 + 40, items: [item('2F 203호(명상실)', '10:00', '11:00')], temps: { r203: 30.5 } });
-  await withWorld(w, () => runAuto({ ...ENV, AUTO_MODE: 'dry' }, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40))));
+  const w = makeWorld({ nowMin: 9 * 60 + 35, items: [item('2F 203호(명상실)', '10:00', '11:00')], temps: { r203: 30.5 } });
+  await withWorld(w, () => runAuto({ ...ENV, AUTO_MODE: 'dry' }, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 35))));
   assert.equal(w.calls.filter((c) => c.method === 'POST' && /control/.test(c.url)).length, 0);
 });
 await t('자동: 모든 일정 끝난 방의 켜진 에어컨만 끈다', async () => {
@@ -174,10 +174,39 @@ await t('자동: 새벽·밤에는 아무것도 안 한다', async () => {
   assert.equal(r.skipped, 'time'); assert.equal(w.calls.length, 0);
 });
 await t('자동: 일시중지(KV)면 건너뜀', async () => {
-  const w = makeWorld({ nowMin: 9 * 60 + 40, items: [item('2F 203호', '10:00', '11:00')], temps: { r203: 31 } });
+  const w = makeWorld({ nowMin: 9 * 60 + 35, items: [item('2F 203호', '10:00', '11:00')], temps: { r203: 31 } });
   const kv = { get: async () => '1' };
-  const r = await withWorld(w, () => runAuto({ ...ENV, STATE: kv }, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40))));
+  const r = await withWorld(w, () => runAuto({ ...ENV, STATE: kv }, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 35))));
   assert.equal(r.skipped, 'paused'); assert.equal(w.calls.length, 0);
+});
+await t('프로그램 진행 중에는 켜지 않고(일부러 꺼 둔 에어컨), 켜기는 시작 30분 전부터 10분 안에만 한다', () => {
+  const run = (nowMin, extra = {}) => decideRoom({ roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin, devices: [dev('OFF', 'COOL', 31)], cfg: { ...CONFIG, ...extra } });
+  assert.equal(run(630).actions.length, 0, '진행 중(10:30) 켜지 않음'); assert.match(run(630).reason, /진행 중에는 켜지 않음/);
+  assert.equal(run(600).actions.length, 0, '시작 시각(10:00)에도 켜지 않음');
+  assert.equal(run(570).actions.length, 1, '시작 30분 전(9:30) 켬');
+  assert.equal(run(579).actions.length, 1, '9:39까지 켬');
+  assert.equal(run(585).actions.length, 0, '9:45(15분 지남)에는 다시 켜지 않음');
+  assert.equal(run(585, { RETRY_ON: true }).actions.length, 1, '미룬 조치 이어서 하기는 허용');
+  // 진행 중이라도 추우면 끄기는 한다
+  const cold = decideRoom({ roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin: 630, devices: [dev('ON', 'COOL', 23)], cfg: CONFIG });
+  assert.equal(cold.actions.length, 1); assert.equal(cold.actions[0].power, 'OFF');
+});
+await t('204호(상시 냉방)도 자기 프로그램이 진행 중일 때는 켜지 않는다', () => {
+  const d = (nowMin, items) => decideRoom({ roomItems: items, allItems: [], nowMin, devices: [dev('OFF', 'COOL', 30)], cfg: { ...CONFIG, ALWAYS_COOL: true } });
+  assert.equal(d(840, []).actions.length, 1, '프로그램 없으면 켬');
+  assert.equal(d(630, [item('2F 204호', '10:00', '11:00')]).actions.length, 0, '자기 프로그램 진행 중에는 안 켬');
+  assert.equal(d(660 + 30, [item('2F 204호', '10:00', '11:00')]).actions.length, 1, '프로그램이 끝나면 다시 켬');
+});
+await t('수동 제어: 바람 세기만 바꾸기(전원·모드·온도는 건드리지 않음)', async () => {
+  const w = makeWorld({});
+  await withWorld(w, async () => {
+    const post = (b) => worker.fetch(new Request('https://x/api/control', { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify(b) }), ENV);
+    assert.equal((await post({ deviceIds: ['dev0'], action: 'wind', value: 'TURBO' })).status, 400);
+    const ok = await (await post({ deviceIds: ['dev0', 'dev1'], action: 'wind', value: 'LOW' })).json();
+    assert.equal(ok.ok, true);
+  });
+  const cc = w.calls.filter((c) => c.method === 'POST' && /control$/.test(c.url));
+  assert.equal(cc.length, 2); assert.ok(cc.every((c) => c.body.airFlow && c.body.airFlow.windStrength === 'LOW' && Object.keys(c.body).length === 1));
 });
 await t('수동 제어: 등록 안 된 기기·범위 밖 온도 거절', async () => {
   const w = makeWorld({});
@@ -226,7 +255,7 @@ const controls = (w) => w.calls.filter((c) => c.method === 'POST' && /control$/.
 console.log('방별 설정');
 await t('방별 설정 저장 → 상태에 반영, 그 방만 기준이 바뀐다', async () => {
   const KV = makeKV(); const env = { ...ENV, STATE: KV };
-  const w = makeWorld({ nowMin: 9 * 60 + 40, temps: { r203: 30.5, r204: 30.5 }, items: [item('203호', '10:00', '11:00'), item('204호', '10:00', '11:00')] });
+  const w = makeWorld({ nowMin: 9 * 60 + 35, temps: { r203: 30.5, r204: 30.5 }, items: [item('203호', '10:00', '11:00'), item('204호', '10:00', '11:00')] });
   await withWorld(w, async () => {
     const bad = await post('/api/settings', { room: 'r203', settings: { hot_on: 22, cool_target: 24 } }, env);
     assert.equal(bad.status, 400);
@@ -240,7 +269,7 @@ await t('방별 설정 저장 → 상태에 반영, 그 방만 기준이 바뀐�
     assert.equal(r.auto.canSave, true);
     assert.equal(r203.auto.actions.length, 0);        // 30.5° < 32° → 제어 안 함
     assert.ok(r204.auto.actions.length > 0);           // 기본 기준(28°)이면 냉방
-    await runAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40) - 9 * 3600e3 + 9 * 3600e3));
+    await runAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 35) - 9 * 3600e3 + 9 * 3600e3));
   });
   const calls = controls(w);
   assert.ok(calls.length > 0);
@@ -249,13 +278,13 @@ await t('방별 설정 저장 → 상태에 반영, 그 방만 기준이 바뀐�
 });
 await t('방별 자동 끄기·기본값 복원, KV 없으면 저장 거절', async () => {
   const KV = makeKV(); const env = { ...ENV, STATE: KV };
-  const w = makeWorld({ nowMin: 9 * 60 + 40, temps: { r203: 30.5 }, items: [item('203호', '10:00', '11:00')] });
+  const w = makeWorld({ nowMin: 9 * 60 + 35, temps: { r203: 30.5 }, items: [item('203호', '10:00', '11:00')] });
   await withWorld(w, async () => {
     await post('/api/settings', { room: 'r203', settings: { enabled: false } }, env);
     let r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env)).json();
     let x = r.floors.find((f) => f.floor === '2F').rooms.find((y) => y.key === 'r203');
     assert.equal(x.auto.state, 'off'); assert.equal(x.auto.actions.length, 0);
-    await runAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 40)));
+    await runAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 35)));
     await post('/api/settings', { room: 'r203', reset: true }, env);
     r = await (await worker.fetch(new Request('https://x/api/status', { headers: { 'x-app-password': 'pw' } }), env)).json();
     x = r.floors.find((f) => f.floor === '2F').rooms.find((y) => y.key === 'r203');
@@ -441,7 +470,7 @@ await t('자동·수동 제어와 오류가 로그에 남고, /api/logs 로 종�
 
 await t('한 번에 LG 호출이 너무 많아지면 일부를 다음 점검으로 미룬다', async () => {
   const kv = mkKV(); const env = { ...ENV, STATE: kv };
-  const k = at('09:40');
+  const k = at('09:35');
   const items = ['B101호', '2F 201호', '2F 202호', '2F 203호', '2F 205호', '건강측정실', '치유장비실', '건강증진실2'].map((l) => item(l, '10:00', '11:00'));
   const w = makeWorld({ nowMin: k.nowMin, items, temps: { b101: 30, r201: 30, r202: 30, r203: 30, r205: 30, b102: 30, hp1: 30, hp2: 30 } });
   const r = await withWorld(w, () => runAuto(env, w.fetchFn, k.now));

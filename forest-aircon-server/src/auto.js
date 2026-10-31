@@ -1,5 +1,6 @@
 import { spanOf } from './rooms.js';
 import { timedMoment } from './rules.js';
+export const ON_WINDOW_MIN = 10;   // 시작 N분 전 시점부터 이 시간 안에서만 «켜기»를 한다
 
 // 한 방의 자동 제어 판단(순수 함수 — 실제 호출은 하지 않는다).
 // roomItems: 그 방의 오늘 일정 / allItems: 오늘 전체 일정 / devices: [{id, power, mode, cur, target}]
@@ -25,6 +26,13 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
     const state = baseState;
     if (temp === null) return none(state, '방 온도를 읽지 못해 제어 안 함');
     const actions = [];
+    // 켜기는 «시작 30분 전부터 10분 안»에만 한다(프로그램 진행 중에는 켜지 않음 — 일부러 꺼 둔 걸 다시 켜지 않도록).
+    // 상시 냉방 방(204호)은 프로그램이 진행 중이 아닐 때 언제든 켠다.
+    const preStart = spans.some((s) => { const from = s.s - cfg.PRE_MIN; return nowMin >= from && nowMin < from + ON_WINDOW_MIN && nowMin < s.s; });
+    const canOn = always ? !active : (preStart || (cfg.RETRY_ON && soon));
+    if (temp >= cfg.HOT_ON && !canOn) {
+      return { state, temp, actions, reason: active ? `방 온도 ${temp}° — 프로그램 진행 중에는 켜지 않음` : `방 온도 ${temp}° — 켜는 시간(시작 ${cfg.PRE_MIN}분 전)이 아님` };
+    }
     if (temp >= cfg.HOT_ON) {
       for (const d of usable) {
         if (!(d.power === 'ON' && d.mode === 'COOL')) {

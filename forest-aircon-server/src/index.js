@@ -72,7 +72,7 @@ export async function snapshot(env, fetchFn = fetch, wantRoom = () => true, know
 
 const heatOn = (env) => env && env.HEAT_ENABLED === '1';   // 난방은 중앙제어로 막혀 있으므로 기본은 꺼짐
 
-function evaluate(sched, devices, smap = {}, heat = false) {
+function evaluate(sched, devices, smap = {}, heat = false, retry = false) {
   const by = itemsByRoom(sched.items);
   const out = {}, cfgs = {};
   for (const key of Object.keys(PLACES)) {
@@ -85,7 +85,7 @@ function evaluate(sched, devices, smap = {}, heat = false) {
       out[key] = { state: 'off', reason: '이 방은 자동 제어를 꺼 두었습니다', temp: temps.length ? Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10 : null, actions: [] };
       continue;
     }
-    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: { ...cfgOf(settings, heat), ALWAYS_COOL: always } });
+    out[key] = decideRoom({ roomItems: by[key] || [], allItems: sched.items, nowMin: sched.nowMin, devices: devs, cfg: { ...cfgOf(settings, heat), ALWAYS_COOL: always, RETRY_ON: retry } });
   }
   return { by, decisions: out, cfgs };
 }
@@ -164,9 +164,14 @@ async function controlResponse(env, body) {
   const action = String(body.action || '');
   if (!ids.length) return json({ ok: false, error: '대상 에어컨이 없습니다' }, 400);
   if (ids.length > 12) return json({ ok: false, error: '한 번에 12대까지만 제어합니다' }, 400);
-  if (!['cool', 'heat', 'off', 'temp'].includes(action)) return json({ ok: false, error: '알 수 없는 동작' }, 400);
+  if (!['cool', 'heat', 'off', 'temp', 'wind'].includes(action)) return json({ ok: false, error: '알 수 없는 동작' }, 400);
   if (action === 'heat' && !heatOn(env)) return json({ ok: false, error: '난방은 현재 중앙제어로 막혀 있어 사용하지 않습니다' }, 400);
   let value = null;
+  const WINDS = { AUTO: '자동', LOW: '약', MID: '중', HIGH: '강' };
+  if (action === 'wind') {
+    value = String(body.value || '');
+    if (!WINDS[value]) return json({ ok: false, error: '바람 세기는 자동·약·중·강 중에서 고르세요' }, 400);
+  }
   if (action === 'temp') {
     value = Number(body.value);
     if (!(value >= 16 && value <= 30)) return json({ ok: false, error: '온도는 16~30°C 사이로 입력하세요' }, 400);
@@ -180,13 +185,13 @@ async function controlResponse(env, body) {
     try {
       const warn = await applyOne(thinq, id, action === 'cool' ? { power: 'ON', mode: 'COOL', temp: body.value ? Number(body.value) : CONFIG.COOL_TARGET, wind: WIND_DEFAULT }
         : action === 'heat' ? { power: 'ON', mode: 'HEAT', temp: body.value ? Number(body.value) : undefined }
-        : action === 'off' ? { power: 'OFF' } : { temp: value });
+        : action === 'off' ? { power: 'OFF' } : action === 'wind' ? { wind: value } : { temp: value });
       results.push({ id, ok: true, warn });
     } catch (e) { results.push({ id, ok: false, error: e.message }); }
     await sleep(300);
   }
   const byId = new Map(acs.map((d) => [d.id, d]));
-  const label = action === 'cool' ? `냉방 켜기 ${body.value ? Number(body.value) : CONFIG.COOL_TARGET}° · 바람 자동` : action === 'heat' ? '난방 켜기' : action === 'off' ? '끄기' : `온도 ${value}°`;
+  const label = action === 'cool' ? `냉방 켜기 ${body.value ? Number(body.value) : CONFIG.COOL_TARGET}° · 바람 자동` : action === 'heat' ? '난방 켜기' : action === 'off' ? '끄기' : action === 'wind' ? `바람 세기 ${WINDS[value]}` : `온도 ${value}°`;
   await addLogs(env, results.map((r) => { const d = byId.get(r.id) || {}; const k = d.id ? deviceRoom(d) : null; return { kind: 'manual', room: (PLACES[k] || {}).name || '', dev: d.alias || r.id.slice(0, 8), what: label, res: r.ok ? 'ok' : 'fail', note: r.ok ? (r.warn || []).join(' / ') : r.error }; }));
   return json({ ok: results.every((r) => r.ok), results });
 }
@@ -275,7 +280,7 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
   const need = roomsNeeded(sched.nowMin, Object.keys(PLACES));
   const snap = await snapshot(env, fetchFn, (k) => need.has(k) || ALWAYS_COOL_ROOMS.includes(k) || (!opts.supplyOnly && (by[k] || []).length > 0), sched);
   const smap = await loadSettings(env);
-  const { decisions } = evaluate(snap.sched, snap.devices, smap, heatOn(env));
+  const { decisions } = evaluate(snap.sched, snap.devices, smap, heatOn(env), !!opts.retry);
   const enabledOf = (k) => settingsOf(smap, k).settings.enabled;
   const live = env.AUTO_MODE === 'live';
   const entries = [];
@@ -330,10 +335,10 @@ export async function tickAuto(env, fetchFn = fetch, now = new Date()) {
   const smap = await loadSettings(env);
   const by = itemsByRoom(sched.items);
   let g = shouldCheckLG({ by, allItems: sched.items, nowMin: sched.nowMin, settingsOf: (k) => settingsOf(smap, k).settings, graceMin: CONFIG.POST_GRACE_MIN, alwaysKeys: ALWAYS_COOL_ROOMS });
-  if (!g.run && env.STATE) { try { if (await env.STATE.get('retry') === '1') g = { run: true, why: '미룬 조치 이어서 하기' }; } catch {} }
+  if (!g.run && env.STATE) { try { if (await env.STATE.get('retry') === '1') g = { run: true, why: '미룬 조치 이어서 하기', retry: true }; } catch {} }
   if (!g.run) { console.log('[auto] LG 호출 안 함 —', g.why); return { skipped: 'gate', why: g.why }; }
   console.log('[auto] LG 확인 —', g.why);
-  return runAuto(env, fetchFn, now, sched, { supplyOnly: !!g.supplyOnly });
+  return runAuto(env, fetchFn, now, sched, { supplyOnly: !!g.supplyOnly, retry: !!g.retry });
 }
 
 export default {
