@@ -16,6 +16,9 @@ export const PLACES = {
   hp2:     { name: '건강증진실 2',             short: '건강증진실 2', floor: '1F', sched: true },
   // noapi: LG 서버가 이 에어컨의 상태 읽기·제어를 지원하지 않는다(ThinQ 앱에서만 조작). 일정은 보여주되 제어하지 않는다.
   haearim: { name: '해아림홀',                short: '해아림홀',     floor: '1F', sched: true, noapi: true },
+  // 백운홀: 한 개의 넓은 방. 난방도 되지만 모두 묶여 있어 가끔 냉방이 난방으로 바뀜 → 바뀌면 오류·알림. 일정 연동 없음(수동).
+  // dummies: ThinQ 에 없는 자리(도면에 «없음»으로만 표시)
+  baekun:  { name: '백운홀',                  short: '백운홀',       floor: '백운홀', sched: false, heat: true, dummies: ['강사옆측'] },
   // 2층
   r201:    { name: '201호 (음파실)',           short: '201호',       floor: '2F', sched: true },
   r202:    { name: '202호 (입식다도실)',       short: '202호',       floor: '2F', sched: true },
@@ -23,7 +26,7 @@ export const PLACES = {
   r204:    { name: '204호 (명상실)',           short: '204호',       floor: '2F', sched: true },
   r205:    { name: '205호 (좌식다도실)',       short: '205호',       floor: '2F', sched: true },
 };
-export const FLOOR_ORDER = ['B1', '1F', '2F'];
+export const FLOOR_ORDER = ['B1', '1F', '2F', '백운홀'];
 export const ROOMS = PLACES; // 이전 이름 호환
 
 // 에어컨 이름 → 장소. «에어컨(...)» 괄호 안 글자에서 공백을 뺀 것이 열쇠입니다.
@@ -43,6 +46,8 @@ export const ALIAS_PLACE = {
   '치유장비실1': 'hp1', '치유장비실2': 'hp1', '치유장비실3': 'hp1', '치유장비실4': 'hp1',   // 치유장비실 = 건강증진실 1
   '건강증진실21': 'hp2', '건강증진실22': 'hp2', '건강증진실23': 'hp2', '건강증진실24': 'hp2',
   '해아림홀뒤': 'haearim',
+  // 백운홀(ThinQ 앱의 «백운홀» 방)
+  '입구측': 'baekun', '입구옆측': 'baekun', '강사측': 'baekun', '강사측2열': 'baekun', '강사옆측2열': 'baekun',
   // 2층
   '음파실내측': 'r201', '음파실창측': 'r201',
   '입식다도실스크린측': 'r202', '입식다도실강사측': 'r202',

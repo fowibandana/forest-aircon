@@ -77,3 +77,5 @@ export function coldAlerts({ nowMin, decisions, by, allItems, enabledOf, date })
   }
   return out;
 }
+
+export const inSweep = (nowMin) => nowMin >= RULES.SWEEP_AT && nowMin < RULES.SWEEP_AT + RULES.SWEEP_TICKS * TICK_MIN;

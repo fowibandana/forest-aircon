@@ -17,6 +17,8 @@ const ALIASES = {
   'B101호': 'b101', '건강측정실 입구측': 'b102', '실감실': 'media',
   // 후순위
   '데탁': 'later', '엘베쪽': 'later',
+  // 백운홀
+  '입구측': 'baekun', '입구옆측': 'baekun', '강사측': 'baekun', '강사측 2열': 'baekun', '강사옆측 2열': 'baekun',
 };
 function makeWorld({ nowMin = 9 * 60, items = [], temps = {}, power = {}, mode = {} }) {
   const devices = Object.keys(ALIASES).map((a, i) => ({ deviceId: 'dev' + i, alias: '에어컨(' + a + ')', type: 'DEVICE_AIR_CONDITIONER' }));
@@ -31,7 +33,8 @@ function makeWorld({ nowMin = 9 * 60, items = [], temps = {}, power = {}, mode =
       temperature: { currentTemperature: temps[ALIASES[a]] ?? 24, targetTemperature: 24, unit: 'C' },
     };
   }
-  const nowMs = Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + nowMin * 60e3;
+  let nowMs = Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + nowMin * 60e3;
+  const setNow = (m) => { nowMs = Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + m * 60e3; };
   const fetchFn = async function (url, opt = {}) {
     // 진짜 Workers 의 fetch 처럼, 메서드로 호출되면(this 가 객체) 거절한다
     if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation: function called with incorrect `this` reference');
@@ -51,10 +54,11 @@ function makeWorld({ nowMin = 9 * 60, items = [], temps = {}, power = {}, mode =
     }
     return new Response('no', { status: 404 });
   };
-  return { fetchFn, calls, devices, state };
+  return { fetchFn, calls, devices, state, setNow };
 }
 const item = (loc, start, end, group = '테스트단체') => ({ location: loc, start, end, groupName: group, program: '숲체험', color: '#2a7' });
 const ENV = { THINQ_PAT: 'tok', APP_PASSWORD: 'pw', AUTO_MODE: 'live', ASSETS: { fetch: () => new Response('asset') } };
+const mkKV = () => ({ m: {}, async get(k) { return this.m[k] ?? null; }, async put(k, v) { this.m[k] = v; } });
 const sleepless = () => {}; // 테스트 속도: 300ms 대기를 줄이려고 setTimeout 을 즉시 실행으로 바꾼다
 const realST = globalThis.setTimeout; globalThis.setTimeout = (f) => realST(f, 0);
 
@@ -384,18 +388,26 @@ await t('10시 체험·실감실 켜기 / 20시 끄기', async () => {
   assert.ok(!off.r.log.some((l) => l.room === 'supply'), '비품실은 건드리지 않음');
 });
 
-await t('21시: 비품실과 남은 일정이 있는 방을 빼고 전부 끈다(요청당 12대 제한, 비품실은 절대 끄지 않음)', async () => {
+await t('21시: 비품실과 남은 일정이 있는 방을 빼고 전부 끈다(여러 번에 나눠서, 점검마다 요청 50회 이내, 비품실은 절대 끄지 않음)', async () => {
   const power = {}; for (const a of Object.keys(ALIASES)) power[a] = 'POWER_ON';
   const items = [item('스마트치유실 B101호', '21:30', '22:30')];
+  const kv = mkKV(); const env = { ...ENV, STATE: kv, AUTO_MODE: 'live' };
   const w = makeWorld({ nowMin: 21 * 60, items, power });
-  const now = new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + 21 * 60 * 60e3);
-  const r = await withWorld(w, () => tickAuto({ ...ENV, AUTO_MODE: 'live' }, w.fetchFn, now));
-  const offIds = w.calls.filter((c) => /\/control$/.test(c.url) && c.body.operation && c.body.operation.airConOperationMode === 'POWER_OFF').map((c) => c.url);
-  const aliasOf = (u) => { const id = /devices\/(\w+)\//.exec(u)[1]; return w.devices.find((d) => d.deviceId === id).alias; };
-  const others = offIds.filter((u) => !/B101/.test(aliasOf(u)));   // B101 은 일정 기반 판단(충분히 시원함)으로 꺼질 수 있다
-  assert.equal(others.length, 12, '한 번에 12대까지');
-  for (const u of offIds) assert.ok(!/비품실/.test(aliasOf(u)), '비품실은 끄면 안 됨');
-  assert.ok(!r.log.some((l) => l.room === 'supply'));
+  const aliasOf = (id) => w.devices.find((d) => d.deviceId === id).alias;
+  const offOf = (from) => w.calls.slice(from).filter((c) => /\/control$/.test(c.url) && c.body.operation && c.body.operation.airConOperationMode === 'POWER_OFF').map((c) => aliasOf(/devices\/(\w+)\//.exec(c.url)[1]));
+  let firstOff = null;
+  for (let i = 0; i < 5; i++) {
+    const m = 21 * 60 + i * 5, from = w.calls.length; w.setNow(m);
+    await withWorld(w, () => tickAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + m * 60e3)));
+    const used = w.calls.slice(from).filter((c) => !/jinan-schedule/.test(c.url)).length;
+    assert.ok(used <= 45, `점검 ${i + 1}회차 LG 호출 ${used}회`);
+    if (i === 0) firstOff = offOf(from);
+  }
+  assert.ok(firstOff.length >= 1 && firstOff.length <= 12);
+  const stillOn = w.devices.filter((d) => w.state[d.deviceId].operation.airConOperationMode === 'POWER_ON' && !/후순위|데탁|엘베쪽/.test(d.alias)).map((d) => d.alias);
+  // 남아 있어야 하는 것: 비품실(항상 켬), 해아림홀(제어 불가), 21:30 일정이 있는 B101
+  for (const a of stillOn) assert.ok(/비품실|해아림홀|B101/.test(a), a + ' 가 켜져 있으면 안 됨');
+  assert.ok(stillOn.some((a) => /비품실/.test(a)), '비품실은 계속 켜져 있어야 함');
 });
 
 await t('09시: 오늘 일정이 있는 방이 너무 추우면 «난방 확인 필요» 알림을 저장하고, 상태 응답에 담고, 확인하면 사라진다', async () => {
@@ -419,7 +431,6 @@ await t('09시: 오늘 일정이 있는 방이 너무 추우면 «난방 확인 
   assert.equal(r2.alerts.length, 0);
 });
 
-const mkKV = () => ({ m: {}, async get(k) { return this.m[k] ?? null; }, async put(k, v) { this.m[k] = v; } });
 const at = (hm) => { const [h, m] = hm.split(':').map(Number); return { nowMin: h * 60 + m, now: new Date(Date.UTC(2026, 9, 27, 0, 0) - 9 * 3600e3 + (h * 60 + m) * 60e3) }; };
 
 await t('204호는 프로그램이 없어도 28° 이상이면 냉방(26°·바람 자동), 24° 이하면 끈다 — 다른 방은 그대로', async () => {
@@ -487,6 +498,59 @@ await t('에어컨 기능표(/api/profile)가 지원 항목을 풀어서 보여 
   assert.equal(j.ok, true); assert.equal(j.items[0].path, 'airFlow.windStrength'); assert.match(j.items[0].value, /MID/);
 });
 
+await t('백운홀: 5대 + 없는 자리(강사옆측)가 더미로 나오고, 난방이 되며(수동), 냉방이 난방으로 바뀌면 오류 코드와 알림을 남긴다', async () => {
+  const kv = mkKV(); const env = { ...ENV, STATE: kv };
+  const w = makeWorld({ nowMin: 9 * 60 });
+  const real = w.fetchFn; let flip = false;
+  w.fetchFn = async function (url, o = {}) {
+    if (flip && /\/state$/.test(url)) { const r = await real.call(undefined, url, o); const j = await r.json(); j.response.airConJobMode = { currentJobMode: 'HEAT' }; return new Response(JSON.stringify(j), { status: 200 }); }
+    return real.call(undefined, url, o);
+  };
+  const call = async (path, body) => (await worker.fetch(new Request('https://x' + path, { method: body ? 'POST' : 'GET', headers: { 'x-app-password': 'pw' }, body: body ? JSON.stringify(body) : undefined }), env)).json();
+  globalThis.fetch = w.fetchFn;
+  try {
+    const st = await call('/api/status');
+    const f = st.floors.find((x) => x.floor === '백운홀'); assert.ok(f); const room = f.rooms.find((r) => r.key === 'baekun');
+    assert.equal(room.devices.length, 6); assert.equal(room.heat, true);
+    assert.ok(room.devices.filter((d) => d.dummy).length === 1 && room.devices.filter((d) => d.dummy)[0].alias.includes('강사옆측'));
+    const ids = room.devices.filter((d) => !d.unsupported).map((d) => d.id); assert.equal(ids.length, 5);
+    // 난방은 백운홀에서만 허용
+    const okHeat = await call('/api/control', { deviceIds: [ids[0]], action: 'heat' }); assert.equal(okHeat.ok, true);
+    const other = w.devices.find((d) => /203호 입구측/.test(d.alias)).deviceId;
+    assert.equal((await worker.fetch(new Request('https://x/api/control', { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify({ deviceIds: [other], action: 'heat' }) }), env)).status, 400);
+    // 냉방을 보냈는데 난방으로 바뀐 경우
+    flip = true;
+    const bad = await call('/api/control', { deviceIds: [ids[0]], action: 'cool' });
+    assert.equal(bad.ok, false);
+    const err = await call('/api/logs?kind=error');
+    assert.ok(err.logs.some((x) => /MODE_MISMATCH/.test(x.note) && x.room === '백운홀'));
+    const st2 = await call('/api/status'); assert.ok(st2.alerts.some((a) => /백운홀/.test(a.msg) && /난방/.test(a.msg)));
+  } finally { globalThis.fetch = null; }
+});
+
+await t('백운홀 제어 실패는 오류 코드만 로그에 남긴다', async () => {
+  const kv = mkKV(); const env = { ...ENV, STATE: kv };
+  const w = makeWorld({ nowMin: 9 * 60 });
+  const real = w.fetchFn; const bh = w.devices.find((d) => /\(입구측\)/.test(d.alias)).deviceId;
+  w.fetchFn = async function (url, o = {}) { if (url.includes(bh + '/control')) return new Response('{"error":{"message":"busy","code":"3001"}}', { status: 400 }); return real.call(undefined, url, o); };
+  const call = async (path, body) => (await worker.fetch(new Request('https://x' + path, { method: body ? 'POST' : 'GET', headers: { 'x-app-password': 'pw' }, body: body ? JSON.stringify(body) : undefined }), env)).json();
+  globalThis.fetch = w.fetchFn;
+  try {
+    await call('/api/control', { deviceIds: [bh], action: 'off' });
+    const err = await call('/api/logs?kind=error');
+    assert.equal(err.logs.length, 1); assert.equal(err.logs[0].note, '오류 코드 3001');
+  } finally { globalThis.fetch = null; }
+});
+
+await t('바람 세기는 미약·약·중·강·자동 5단계', async () => {
+  const w = makeWorld({});
+  await withWorld(w, async () => {
+    const post = (b) => worker.fetch(new Request('https://x/api/control', { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify(b) }), ENV);
+    for (const v of ['SLOW', 'LOW', 'MID', 'HIGH', 'AUTO']) assert.equal((await (await post({ deviceIds: ['dev0'], action: 'wind', value: v })).json()).ok, true, v);
+  });
+  assert.deepEqual(w.calls.filter((c) => /control$/.test(c.url)).map((c) => c.body.airFlow.windStrength), ['SLOW', 'LOW', 'MID', 'HIGH', 'AUTO']);
+});
+
 await t('LG가 막혀도 로그인(ping)은 되고, 저장값이 없으면 에어컨 없이 방 구성만 보여준다', async () => {
   const w = makeWorld({ nowMin: 9 * 60, items: [item('스마트치유실 B101호', '10:00', '11:00')] });
   const real = w.fetchFn;
@@ -498,8 +562,8 @@ await t('LG가 막혀도 로그인(ping)은 되고, 저장값이 없으면 에�
     assert.equal((await call('/api/ping', 'bad')).status, 401);
     const r = await (await call('/api/status')).json();
     assert.equal(r.ok, true); assert.equal(r.stale.ageSec, null); assert.match(r.stale.reason, /한도/);
-    assert.equal(r.floors.length, 3); assert.ok(r.floors.every((f) => f.rooms.length > 0));
-    assert.ok(r.floors.flatMap((f) => f.rooms).every((x) => x.devices.length === 0));
+    assert.equal(r.floors.length, 4); assert.ok(r.floors.every((f) => f.rooms.length > 0));
+    assert.ok(r.floors.flatMap((f) => f.rooms).every((x) => x.devices.filter((d) => !d.dummy).length === 0));
   } finally { globalThis.fetch = null; }
 });
 
