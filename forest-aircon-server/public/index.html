@@ -347,9 +347,11 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.11.3';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.11.4';   // 화면(이 파일)의 버전
 const WIND_KO = { SLOW: '미약', LOW: '약', MID: '중', HIGH: '강', POWER: '파워', AUTO: '자동' };
 const windKo = (w) => w ? (WIND_KO[w] || w) : '';
+const WIND_BARS = { SLOW: 1, LOW: 2, MID: 3, HIGH: 4, POWER: 5, AUTO: 5 };
+const windFull = (w) => w ? windKo(w) + (w !== 'AUTO' && WIND_BARS[w] ? ` (${WIND_BARS[w]}칸)` : '') : '';
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -675,7 +677,7 @@ function tileHtml(d) {
   if (!d.ok) return `<button class="tile tbad" data-id="${esc(d.id)}"><i></i><span class="${tpc}">${pos}</span><span class="ts">읽기 실패 · 눌러서 제어</span></button>`;
   if (d.power === 'ON') {
     const cls = d.mode === 'COOL' ? 'cool' : d.mode === 'HEAT' ? 'heat' : 'on';
-    return `<button class="tile ${cls}" data-id="${esc(d.id)}"><i></i><span class="${tpc}">${pos}</span><span class="ts">${esc(MODE[d.mode] || d.mode || '켜짐')} · 설정 ${d.target ?? '–'}°${d.wind ? ' · 바람 ' + windKo(d.wind) : ''}</span>${cur}</button>`;
+    return `<button class="tile ${cls}" data-id="${esc(d.id)}"><i></i><span class="${tpc}">${pos}</span><span class="ts">${esc(MODE[d.mode] || d.mode || '켜짐')} · 설정 ${d.target ?? '–'}°</span>${d.wind ? `<span class="ts">바람 ${esc(windKo(d.wind))}</span>` : ''}${cur}</button>`;
   }
   return `<button class="tile" data-id="${esc(d.id)}"><i></i><span class="${tpc}">${pos}</span><span class="ts">꺼짐</span>${cur}</button>`;
 }
@@ -841,8 +843,8 @@ function openDev(room, d) {
   const heatBtn = $('dev').querySelector('[data-a="heat"]'); heatBtn.style.display = heatOn(room) ? '' : 'none'; $('dev').querySelector('.mbtns').classList.toggle('noheat', !heatOn(room));
   const st = room.settings || {};
   $('devT').textContent = `${room.short} · ${posName(d.alias)}`;
-  $('devS').textContent = !d.ok ? '상태를 읽지 못했습니다. 그래도 제어는 시도할 수 있어요.' : d.power === 'ON'
-    ? `${MODE[d.mode] || d.mode || '켜짐'} 중 · 설정 ${d.target ?? '–'}° · 현재 ${d.cur ?? '–'}°${d.wind ? ' · 바람 ' + windKo(d.wind) : ''}` : `꺼짐${d.cur != null ? ' · 현재 ' + d.cur + '°' : ''}`;
+  $('devS').innerHTML = !d.ok ? '상태를 읽지 못했습니다. 그래도 제어는 시도할 수 있어요.' : d.power === 'ON'
+    ? `${esc(MODE[d.mode] || d.mode || '켜짐')} 중 · 설정 ${d.target ?? '–'}° · 현재 ${d.cur ?? '–'}°` + (d.wind ? `<b style="display:block;margin-top:4px">바람 세기 ${esc(windFull(d.wind))}</b>` : '') : `꺼짐${d.cur != null ? ' · 현재 ' + d.cur + '°' : ''}`;
   const clamp = (n) => Math.max(16, Math.min(30, n));
   let v = clamp(Math.round(d.target ?? st.cool_target ?? 24)), touched = false;
   const show = () => { $('dvV').textContent = v + '°'; };
