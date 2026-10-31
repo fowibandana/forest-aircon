@@ -122,6 +122,7 @@ header{position:sticky;top:0;z-index:5;background:var(--bg);padding:max(14px,env
 .fx-l{stroke:var(--wall);stroke-width:2;stroke-linecap:round}
 .fx-p{fill:var(--wall);opacity:.85}
 .plan .t1{font-size:28px;font-weight:700;letter-spacing:-.01em}
+.rt2{display:inline-block;margin-left:10px}.rt2 small{display:block}
 .plan .t2{font-size:38px;font-weight:600;font-variant-numeric:tabular-nums}
 .plan .t3{font-size:21px;fill:var(--mute)}
 .plan .tn{font-size:19px;fill:var(--mute);font-weight:600}
@@ -346,7 +347,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.11.0';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.11.1';   // 화면(이 파일)의 버전
 const MODE = { COOL: '냉방', HEAT: '난방', FAN: '송풍', AIR_DRY: '제습', AUTO: '자동', AIR_CLEAN: '청정', ENERGY_SAVING: '절전' };
 let DATA = null, floor = 'B1', busy = false, timer = null, loadedAt = 0; const rTs = {};
 const ICON_R = `<svg class="ico" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>`, ICON_I = `<svg class="ico" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
@@ -538,6 +539,17 @@ function roomTemp(r) {
   if (!t.length) t = r.devices.filter((x) => x.ok && x.cur != null).map((x) => x.cur);
   return t.length ? Math.round(t.reduce((a, b) => a + b, 0) / t.length * 10) / 10 : null;
 }
+// 양끝 센서 온도(평균 아님): 왼쪽→오른쪽 순서. 센서가 둘이 아니면 null
+function sensorTemps(r) {
+  if (!r.tempIds || r.tempIds.length < 2) return null;
+  let ds = r.devices.filter((x) => r.tempIds.includes(x.id));
+  if (ds.length < 2) return null;
+  if (r.key === 'baekun') ds = exactOrder(['입구측', '강사측'], ds);   // 도면: 입구쪽이 왼쪽, 강사쪽이 오른쪽
+  else ds = acOrder(r.key, null, ds);   // 도면의 왼쪽→오른쪽 순서 그대로
+  const lab = (d) => r.key === 'baekun' ? posName(d.alias) : numOf(d) + '번';
+  return ds.map((d) => ({ label: lab(d), t: d.ok && d.cur != null ? d.cur : null }));
+}
+const fT = (t) => t == null ? '–' : (Math.round(t * 10) / 10) + '°';
 function planHtml(F) {
   const spec = PLAN[F.floor]; if (!spec) { $('plan').innerHTML = ''; return; }
   const PH = PH_OF[F.floor] || PH0;
@@ -583,7 +595,11 @@ function planHtml(F) {
     const label = zone || r.short;
     if (SCREEN_RIGHT.has(key)) over += `<rect class="scr" x="${f1(x + w - 17)}" y="${f1(cy - 46)}" width="7" height="92" rx="2"/><text class="t3 scrl" transform="translate(${f1(x + w - 24)} ${f1(cy)}) rotate(-90)">스크린</text>`;
     txt += `<g data-room="${key}"><text class="t1" x="${f1(cx)}" y="${f1(cy - (big ? 26 : 18))}">${esc(label)}</text>`;
-    txt += `<text class="t2" x="${f1(cx)}" y="${f1(cy + (big ? 18 : 22))}">${avg == null ? '–' : avg + '°'}</text>`;
+    const st = sensorTemps(r);
+    if (st) {
+      const dx = key === 'baekun' ? Math.min(w * .3, 170) : Math.min(w * .22, 100), ty = cy + (big ? 16 : 20) + (key === 'baekun' ? 14 : 0);
+      st.forEach((q, i) => { const tx = cx + (i ? dx : -dx); txt += `<text class="t3" style="font-size:15px" x="${f1(tx)}" y="${f1(ty - 28)}">${esc(q.label)}</text><text class="t2" style="font-size:${key === 'baekun' ? 34 : 28}px" x="${f1(tx)}" y="${f1(ty + 4)}">${fT(q.t)}</text>`; });
+    } else txt += `<text class="t2" x="${f1(cx)}" y="${f1(cy + (big ? 18 : 22))}">${avg == null ? '–' : avg + '°'}</text>`;
     if (r.schedule.current.length) txt += `<text class="live-t" x="${f1(cx)}" y="${f1(cy + (big ? 46 : 46))}">● 진행 중</text>`;
     if (devs.length) {
       const n = devs.length, gap = Math.min(70, (w - 30) / n), x0 = cx - (n - 1) * gap / 2, ay = cy + 78;
@@ -767,7 +783,7 @@ function render() {
     } else body = '<div class="noac">등록된 에어컨이 없습니다</div>';
     const rids = r.devices.filter((x) => !x.unsupported).map((x) => x.id);
     return `<article class="room ${r.noapi ? 'na' : ''}" id="room-${r.key}"><div class="rHead"><div class="rName">${esc(r.name)}</div>
-      <div class="rTemp">${avg == null ? '–' : (Math.round(avg * 10) / 10) + '°'}<small>방 온도</small></div></div>
+      <div class="rTemp">${(() => { const st = sensorTemps(r); return st ? st.map((q) => `<span class="rt2">${fT(q.t)}<small>${esc(q.label)}</small></span>`).join('') : (avg == null ? '–' : (Math.round(avg * 10) / 10) + '°') + '<small>방 온도</small>'; })()}</div></div>
       <div class="rTools">${rids.length ? `<button class="rRef" aria-label="${esc(r.short)} 새로고침">${ICON_R}<span>새로고침</span></button>` : ''}<button class="rInfo" aria-label="${esc(r.short)} 정보 확인">${ICON_I}<span>정보 확인</span></button>${rids.length ? `<span class="rAge">${roomAge(r.key)}</span>` : ''}</div>
       ${progHtml(r.schedule, r.scheduled)}${body}</article>`;
   }).join('');

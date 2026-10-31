@@ -551,6 +551,18 @@ await t('바람 세기는 미약·약·중·강·자동 5단계', async () => {
   assert.deepEqual(w.calls.filter((c) => /control$/.test(c.url)).map((c) => c.body.airFlow.windStrength), ['SLOW', 'LOW', 'MID', 'HIGH', 'AUTO']);
 });
 
+await t('바람 세기: 기기가 해당 단계를 받아들이지 않으면(값이 그대로) 실패로 알린다', async () => {
+  const w = makeWorld({});
+  w.state.dev0.airFlow = { windStrength: 'LOW' };   // 기기는 미약(SLOW)을 무시하고 LOW 그대로
+  await withWorld(w, async () => {
+    const post = (b) => worker.fetch(new Request('https://x/api/control', { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify(b) }), ENV);
+    const j = await (await post({ deviceIds: ['dev0'], action: 'wind', value: 'SLOW' })).json();
+    assert.equal(j.results[0].ok, false); assert.match(j.results[0].error, /미약.*받아들이지/);
+    const j2 = await (await post({ deviceIds: ['dev0'], action: 'wind', value: 'LOW' })).json();
+    assert.equal(j2.results[0].ok, true);
+  });
+});
+
 await t('방 온도는 센서(양끝) 에어컨 값으로 잰다', () => {
   const a = { ...dev('OFF', 'COOL', 20), id: 'a' }, b = { ...dev('OFF', 'COOL', 22), id: 'b' }, c = { ...dev('OFF', 'COOL', 40), id: 'c' }, d = { ...dev('OFF', 'COOL', 30), id: 'd' };
   const r = decideRoom({ roomItems: [item('건강증진실1', '10:00', '11:00')], allItems: [], nowMin: 575, devices: [a, b, c, d], cfg: { ...CONFIG, SENSOR_IDS: new Set(['a', 'd']) } });

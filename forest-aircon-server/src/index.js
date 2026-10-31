@@ -219,7 +219,12 @@ async function controlResponse(env, body) {
       const warn = await applyOne(thinq, id, action === 'cool' ? { power: 'ON', mode: 'COOL', temp: body.value ? Number(body.value) : CONFIG.COOL_TARGET, wind: WIND_DEFAULT }
         : action === 'heat' ? { power: 'ON', mode: 'HEAT', temp: body.value ? Number(body.value) : undefined }
         : action === 'off' ? { power: 'OFF' } : action === 'wind' ? { wind: value } : { temp: value });
-      results.push({ id, ok: true, warn });
+      let bad = null;
+      if (action === 'wind') {   // 보낸 뒤 실제로 바뀌었는지 읽어서 확인(기종이 해당 단계를 지원하지 않으면 값이 그대로)
+        await sleep(1500);
+        try { const st = await thinq.getState(id); if (st.wind && st.wind !== value) bad = `기기가 ${WINDS[value]} 단계를 받아들이지 않았습니다(현재 ${WINDS[st.wind] || st.wind}) — 이 기종은 지원하지 않을 수 있음`; } catch {}
+      }
+      results.push(bad ? { id, ok: false, error: bad, code: 'WIND_NOT_APPLIED' } : { id, ok: true, warn });
     } catch (e) { results.push({ id, ok: false, error: e.message, code: e.lgCode || (e.status > 0 ? String(e.status) : '') }); }
     await sleep(300);
   }

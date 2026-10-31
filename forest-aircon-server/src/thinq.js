@@ -105,5 +105,6 @@ export function parseState(st) {
     mode,
     cur: num(t.currentTemperature),
     target,
+    wind: (st.airFlow && st.airFlow.windStrength) || null,
   };
 }
