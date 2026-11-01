@@ -221,12 +221,14 @@ async function controlResponse(env, body) {
       const warn = await applyOne(thinq, id, action === 'cool' ? { power: 'ON', mode: 'COOL', temp: body.value ? Number(body.value) : CONFIG.COOL_TARGET, wind: WIND_DEFAULT }
         : action === 'heat' ? { power: 'ON', mode: 'HEAT', temp: body.value ? Number(body.value) : undefined }
         : action === 'off' ? { power: 'OFF' } : action === 'wind' ? { wind: value } : { temp: value });
-      let bad = null;
-      if (action === 'wind') {   // 보낸 뒤 읽어서 «아무 변화 없이 다른 값 그대로»일 때만 실패로 본다(기기가 값을 다른 이름으로 보고해도 오탐 없게)
-        await sleep(1500);
-        try { const st = await thinq.getState(id); if (st.wind && st.wind !== value && st.wind === before) bad = `기기가 ${WINDS[value]} 단계를 받아들이지 않았습니다(현재 ${WINDS[st.wind] || st.wind} 그대로) — 이 기종은 지원하지 않을 수 있음`; } catch {}
+      let note = null;
+      if (action === 'wind') {   // LG는 «성공» 응답 뒤에도 상태 반영이 늦을 수 있어, 두 번 읽어 보고 그래도 같으면 실패가 아니라 «반영 지연 가능» 안내만 한다
+        for (const wait of [1500, 3500]) {
+          await sleep(wait);
+          try { const st = await thinq.getState(id); if (!st.wind || st.wind === value || st.wind !== before) { note = null; break; } note = `LG는 성공으로 응답했지만 아직 ${WINDS[st.wind] || st.wind} 그대로 표시됩니다(상태 반영이 늦을 수 있음). 잠시 뒤 새로고침해서 확인하세요`; } catch { break; }
+        }
       }
-      results.push(bad ? { id, ok: false, error: bad, code: 'WIND_NOT_APPLIED' } : { id, ok: true, warn });
+      results.push({ id, ok: true, warn: note ? [...(warn || []), note] : warn });
     } catch (e) { results.push({ id, ok: false, error: e.message, code: e.lgCode || (e.status > 0 ? String(e.status) : '') }); }
     await sleep(300);
   }

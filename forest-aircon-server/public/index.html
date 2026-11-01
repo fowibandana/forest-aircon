@@ -347,7 +347,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.11.4';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.11.5';   // 화면(이 파일)의 버전
 const WIND_KO = { SLOW: '미약', LOW: '약', MID: '중', HIGH: '강', POWER: '파워', AUTO: '자동' };
 const windKo = (w) => w ? (WIND_KO[w] || w) : '';
 const WIND_BARS = { SLOW: 1, LOW: 2, MID: 3, HIGH: 4, POWER: 5, AUTO: 5 };
@@ -954,6 +954,7 @@ async function run(ids, action, value) {
     const r = await api('/api/control', { method: 'POST', body: JSON.stringify({ deviceIds: ids, action, value }) });
     const bad = (r.results || []).filter((x) => !x.ok);
     if (bad.length) toast(`${r.results.length - bad.length}대 완료, ${bad.length}대 실패: ${bad[0].error}`, 5200);
+    else if ((r.results || []).some((x) => x.warn && x.warn.length)) toast(`${r.results.length}대 보냄 — ` + r.results.find((x) => x.warn && x.warn.length).warn.slice(-1)[0], 7000);
     else toast(`${r.results.length}대 완료` + (r.picked && r.picked.length ? ' · 번갈아 켜기: ' + r.picked.join(', ') : ''));
   } catch (e) { toast(e.message, 5200); }
   setTimeout(() => refreshIds(ids), 3500);   // 제어한 에어컨만 다시 읽는다(전체를 다시 읽지 않음)

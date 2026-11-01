@@ -551,13 +551,13 @@ await t('바람 세기는 미약·약·중·강·자동 5단계', async () => {
   assert.deepEqual(w.calls.filter((c) => /control$/.test(c.url)).map((c) => c.body.airFlow.windStrength), ['SLOW', 'LOW', 'MID', 'HIGH', 'AUTO']);
 });
 
-await t('바람 세기: 기기가 해당 단계를 받아들이지 않으면(값이 그대로) 실패로 알린다', async () => {
+await t('바람 세기: 기기가 해당 단계를 반영이 안 보이면(값이 그대로) 실패가 아니라 «반영 지연» 안내를 준다', async () => {
   const w = makeWorld({});
   w.state.dev0.airFlow = { windStrength: 'LOW' };   // 기기는 미약(SLOW)을 무시하고 LOW 그대로(요청 전과 같은 값)
   await withWorld(w, async () => {
     const post = (b) => worker.fetch(new Request('https://x/api/control', { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify(b) }), ENV);
     const j = await (await post({ deviceIds: ['dev0'], action: 'wind', value: 'SLOW' })).json();
-    assert.equal(j.results[0].ok, false); assert.match(j.results[0].error, /미약.*받아들이지/);
+    assert.equal(j.results[0].ok, true); assert.match(j.results[0].warn.join(' '), /아직 약 그대로/);
     const j2 = await (await post({ deviceIds: ['dev0'], action: 'wind', value: 'LOW' })).json();
     assert.equal(j2.results[0].ok, true);
   });
