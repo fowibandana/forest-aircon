@@ -28,7 +28,7 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
     const state = baseState;
     if (temp === null) return none(state, '방 온도를 읽지 못해 제어 안 함');
     const actions = [];
-    // 켜기는 «시작 30분 전부터 10분 안»에만 한다(프로그램 진행 중에는 켜지 않음 — 일부러 꺼 둔 걸 다시 켜지 않도록).
+    // 켜기는 «시작 N분 전부터 10분 안»에만 한다(프로그램 진행 중에는 켜지 않음 — 일부러 꺼 둔 걸 다시 켜지 않도록).
     // 상시 냉방 방(204호)은 프로그램이 진행 중이 아닐 때 언제든 켠다.
     const preStart = spans.some((s) => { const from = s.s - cfg.PRE_MIN; return nowMin >= from && nowMin < from + ON_WINDOW_MIN && nowMin < s.s; });
     const canOn = always ? !active : (preStart || (cfg.RETRY_ON && soon));
@@ -81,7 +81,7 @@ export function shouldCheckLG({ by, allItems, nowMin, settingsOf, graceMin, alwa
     if (!st.enabled) continue;
     const spans = roomItems.map((it) => spanOf(it, allItems));
     const first = Math.min(...spans.map((x) => x.s)), last = Math.max(...spans.map((x) => x.e));
-    const moments = spans.flatMap((x) => [x.s - st.pre, x.s, x.e + graceMin]);
+    const moments = spans.flatMap((x) => [x.s - st.pre, x.s - 30, x.s, x.e + graceMin]);   // 시작 N분 전(켜기), 30분 전(온도 보고 조정)
     const hit = moments.find((m) => m >= tick && m < tick + TICK_MIN);
     if (hit !== undefined) return { run: true, why: `중요한 순간(${key})` };
     if (nowMin >= first - Math.max(AUTO_WINDOW_MIN, st.pre) && nowMin < last + graceMin + AUTO_INTERVAL_MIN) inWindow = true;

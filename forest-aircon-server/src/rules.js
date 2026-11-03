@@ -2,7 +2,7 @@ import { spanOf } from './rooms.js';
 import { TICK_MIN } from './auto.js';
 
 // 시간으로 정해진 규칙(순수 함수) — 일정과 상관없이 정해진 시각에 하는 일
-//  · 비품실: 절대 끄지 않는다. 꺼져 있으면 켠다(점검은 매시 정각 근처)
+//  · 비품실: 절대 끄지 않는다(한 개는 항상 켜 둠). 하나도 안 켜져 있으면 한 개만 켠다(점검은 매시 정각 근처)
 //  · 체험실·실감실(실감미디어실): 10:00 켜기, 20:00 끄기
 //  · 21:00 이후: 그날 아직 끝나지 않은 일정이 있는 방, 자동 제어를 끈 방, 비품실만 빼고 모두 끄기
 //  · 09:00: 오늘 일정이 있는 방이 너무 추우면 «난방 확인 필요» 알림(난방은 중앙제어라 사람이 가서 확인)
@@ -41,7 +41,9 @@ export function timedActions({ nowMin, devices, by, allItems, enabledOf }) {
   const actions = [];
   const live = devices.filter((d) => d.ok && d.power);
   // 비품실: 꺼져 있으면 켠다(모드·온도는 건드리지 않는다)
-  for (const d of live) if (d.room === RULES.SUPPLY && d.power === 'OFF') actions.push({ room: d.room, deviceId: d.id, power: 'ON', why: '비품실은 항상 켜 둠 — 켜기' });
+  // (한 개씩만: 하나도 안 켜져 있을 때만 켜고, 어느 것을 켤지는 번갈아 고른다)
+  const sup = live.filter((d) => d.room === RULES.SUPPLY);
+  if (sup.length && !sup.some((d) => d.power === 'ON')) for (const d of sup) actions.push({ room: d.room, deviceId: d.id, power: 'ON', why: '비품실은 항상 켜 둠 — 켜기' });
   // 체험실·실감실
   if (inTick(nowMin, RULES.MEDIA_ON) && enabledOf(RULES.MEDIA)) {
     for (const d of live) if (d.room === RULES.MEDIA && !(d.power === 'ON')) actions.push({ room: d.room, deviceId: d.id, power: 'ON', mode: 'COOL', temp: null, why: '10:00 체험·실감실 켜기' });

@@ -5,6 +5,7 @@ import { fetchSchedule, itemsByRoom, summarizeRoom } from './schedule.js';
 import { Thinq } from './thinq.js';
 import { decideRoom, shouldCheckLG } from './auto.js';
 import { timedActions, coldAlerts, roomsNeeded, hhmm, inSweep } from './rules.js';
+import { stageStep } from './stage.js';
 import { VERSION } from './version.js';
 import { cleanSettings, loadSettings, settingsOf, cfgOf, DEFAULTS } from './settings.js';
 
@@ -79,16 +80,26 @@ function sensorIdsOf(key, devs) {
   return ids.length ? new Set(ids) : null;
 }
 // 켤 때 «한 묶음씩 번갈아»: 방의 묶음(groups) 중 이번 순서의 묶음만 켠다(순서는 KV 'rot' 에 기억)
-const groupIdx = (key, d) => { const gs = (PLACES[key] || {}).groups; return gs ? gs.findIndex((g) => g.names.includes(aliasCore(d.alias))) : -1; };
 async function loadRot(env) { if (!env.STATE) return {}; try { return JSON.parse(await env.STATE.get('rot') || '{}') || {}; } catch { return {}; } }
 async function saveRot(env, rot) { if (env.STATE) { try { await env.STATE.put('rot', JSON.stringify(rot)); } catch {} } }
+async function loadEsc(env) { if (!env.STATE) return {}; try { return JSON.parse(await env.STATE.get('esc') || '{}') || {}; } catch { return {}; } }
+async function saveEsc(env, esc) { if (env.STATE) { try { await env.STATE.put('esc', JSON.stringify(esc)); } catch {} } }
+// 묶음: 방에 groups 가 정해져 있으면 그것, 없으면(자동 제어에서만) 에어컨 한 대 한 대가 각각 한 묶음
+function groupsFor(key, roomDevs, auto) {
+  const gs = (PLACES[key] || {}).groups;
+  if (gs) return gs.map((g) => ({ label: g.label, has: (d) => g.names.includes(aliasCore(d.alias)) }));
+  if (!auto || !roomDevs || roomDevs.length < 2) return null;
+  return [...roomDevs].sort((a, b) => String(a.alias).localeCompare(String(b.alias), 'ko')).map((x) => ({ label: aliasCore(x.alias) || String(x.alias), has: (d) => d.id === x.id }));
+}
 // cands: 켜려는 [{id, alias}] → 이번에 켤 묶음 {keep:Set(id), label} | null(묶음이 하나 이하라 제한 없음)
-function pickGroup(key, cands, rot) {
-  const gs = (PLACES[key] || {}).groups; if (!gs || gs.length < 2) return null;
-  const have = new Set(cands.map((d) => groupIdx(key, d)).filter((i) => i >= 0));
-  if (have.size < 2) { if (!have.size) return null; const g = [...have][0]; rot[key] = (g + 1) % gs.length; return { keep: new Set(cands.filter((d) => groupIdx(key, d) === g || groupIdx(key, d) < 0).map((d) => d.id)), label: gs[g].label, single: true }; }
-  const start = rot[key] || 0;
-  for (let k = 0; k < gs.length; k++) { const g = (start + k) % gs.length; if (have.has(g)) { rot[key] = (g + 1) % gs.length; return { keep: new Set(cands.filter((d) => groupIdx(key, d) === g || groupIdx(key, d) < 0).map((d) => d.id)), label: gs[g].label }; } }
+function pickGroup(key, cands, rot, roomDevs = null, auto = false) {
+  const gs = groupsFor(key, roomDevs, auto); if (!gs || gs.length < 2) return null;
+  const idx = (d) => gs.findIndex((g) => g.has(d));
+  const have = new Set(cands.map(idx).filter((i) => i >= 0));
+  const pickOf = (g, extra = {}) => ({ keep: new Set(cands.filter((d) => idx(d) === g || idx(d) < 0).map((d) => d.id)), label: gs[g].label, ...extra });
+  if (have.size < 2) { if (!have.size) return null; const g = [...have][0]; rot[key] = (g + 1) % gs.length; return pickOf(g, { single: true }); }
+  const start = (rot[key] || 0) % gs.length;
+  for (let k = 0; k < gs.length; k++) { const g = (start + k) % gs.length; if (have.has(g)) { rot[key] = (g + 1) % gs.length; return pickOf(g); } }
   return null;
 }
 
@@ -365,21 +376,45 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
   const todo = new Map();
   for (const [key, d] of Object.entries(decisions)) for (const a of d.actions) todo.set(a.deviceId, { ...a, room: key, reason: d.reason });
   for (const a of timedActions({ nowMin: sched.nowMin, devices: snap.devices, by, allItems: sched.items, enabledOf })) todo.set(a.deviceId, { ...a, reason: a.why });
-  for (const [id, a] of todo) if (a.room === 'supply' && a.power === 'OFF') todo.delete(id);
+  // ── 단계 조정: 한 묶음만 켠 뒤 30분 동안 1°도 안 내려가면 전부 켜고, 전부 켠 뒤 1° 이상 내려가면 다시 한 묶음만 남김(프로그램 진행 중에는 하지 않음)
+  const esc = await loadEsc(env); let escChanged = false;
+  const tempAvg = (ds) => { const t = ds.map((d) => d.cur).filter((v) => typeof v === 'number'); return t.length ? Math.round(t.reduce((p, c) => p + c, 0) / t.length * 10) / 10 : null; };
+  const stOf = (k) => settingsOf(smap, k).settings;
+  const isOnFor = (k) => k === 'supply' ? (d) => d.power === 'ON' : (d) => d.power === 'ON' && d.mode === 'COOL';
+  for (const key of Object.keys(PLACES)) {
+    if (PLACES[key].noapi || !enabledOf(key)) continue;
+    const dec = decisions[key] || {};
+    const devs = snap.devices.filter((d) => d.room === key && d.ok && d.power);
+    if (devs.length < 2) continue;
+    const managed = key === 'supply' || dec.state === 'soon' || (ALWAYS_COOL_ROOMS.includes(key) && dec.state !== 'active');
+    if (!managed || [...todo.values()].some((a) => a.room === key)) continue;   // 이번 점검에서 이미 켜거나 끄는 중이면 다음에
+    const st = stOf(key), gs = groupsFor(key, devs, true);
+    const r = stageStep({ state: esc[key], date: sched.date, nowMin: sched.nowMin, temp: key === 'supply' ? tempAvg(devs) : dec.temp, active: dec.state === 'active', devs, isOn: isOnFor(key),
+      firstGroupIds: gs ? devs.filter((d) => gs[0].has(d)).map((d) => d.id) : [], need: key === 'supply' ? st.hot_on - 0.01 : st.cool_target, cool: key !== 'supply', coolTarget: st.cool_target });
+    if (JSON.stringify(r.state) !== JSON.stringify(esc[key])) { if (r.state) esc[key] = r.state; else delete esc[key]; escChanged = true; }
+    for (const a of r.actions) todo.set(a.deviceId, { ...a, room: key, stage: true, reason: a.why });
+  }
+  for (const [id, a] of todo) if (a.room === 'supply' && a.power === 'OFF' && !a.stageRevert) todo.delete(id);   // 비품실은 한 개를 항상 켜 둠(한 개만 남기는 조정 외에는 끄지 않음)
   for (const a of todo.values()) if (a.power === 'ON' && a.mode === 'COOL') { if (typeof a.temp !== 'number') a.temp = CONFIG.COOL_TARGET; a.wind = a.wind || WIND_DEFAULT; }
 
-  // 켤 때는 한 묶음씩 번갈아(4대 방·백운홀)
+  // 켤 때는 한 묶음씩 번갈아(4대 방·백운홀은 정해진 묶음, 그 밖의 방·비품실은 한 대씩). 이미 한 묶음이 켜져 있으면 더 켜지 않는다(전부 켜는 건 위 단계 조정이 정한다)
   const rot = await loadRot(env); let rotUsed = false;
   const devById = new Map(snap.devices.map((d) => [d.id, d]));
   for (const key of Object.keys(PLACES)) {
-    const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON');
+    const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON' && !a.stage);
     if (!ons.length) continue;
-    const pg = pickGroup(key, ons.map((a) => devById.get(a.deviceId)).filter(Boolean), rot);
+    const roomDevs = snap.devices.filter((d) => d.room === key && d.ok && d.power);
+    if (roomDevs.length >= 2 && roomDevs.some(isOnFor(key))) { for (const a of ons) todo.delete(a.deviceId); continue; }
+    const pg = pickGroup(key, ons.map((a) => devById.get(a.deviceId)).filter(Boolean), rot, roomDevs, true);
     if (!pg) continue;
     for (const a of ons) { if (pg.keep.has(a.deviceId)) a.note = '번갈아 켜기: ' + pg.label; else todo.delete(a.deviceId); }
     rotUsed = true;
+    // 켠 시점을 기준으로 기록해 두고, 30분 뒤 점검에서 온도 변화를 본다
+    const t0 = key === 'supply' ? tempAvg(roomDevs) : (decisions[key] || {}).temp;
+    if (typeof t0 === 'number') { esc[key] = { date: sched.date, stage: pg.keep.size < roomDevs.length ? 'one' : 'all', t: sched.nowMin, temp: t0, keep: [...pg.keep] }; escChanged = true; }
   }
   if (rotUsed && live) await saveRot(env, rot);
+  if (escChanged && live) await saveEsc(env, esc);
 
   const log = [];
   let deferred = 0;

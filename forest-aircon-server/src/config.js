@@ -3,7 +3,7 @@ export const CONFIG = {
   SCHEDULE_URL: 'https://jinan-schedule.pages.dev/api',
   THINQ_BASE: 'https://api-kic.lgthinq.com', // 한국(동아시아) 서버
 
-  PRE_MIN: 30,         // 프로그램 시작 몇 분 전부터 방 온도를 보고 제어할지
+  PRE_MIN: 60,         // 프로그램 시작 몇 분 전부터 방 온도를 보고 제어할지(이때 한 묶음만 켜고, 30분 전에 온도를 보고 조정)
   POST_GRACE_MIN: 10,  // 모든 일정이 끝나고 몇 분 뒤에 끌지
 
   HOT_ON: 28,          // 방 온도가 이 이상이면 냉방을 켠다
