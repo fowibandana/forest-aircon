@@ -44,6 +44,7 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
       return { state, temp, actions, reason: `방 온도 ${temp}° ≥ ${cfg.HOT_ON}° → 냉방(${cfg.COOL_TARGET}°)` };
     }
     if (cfg.HEAT_ENABLED && temp <= cfg.COLD_ON) {
+      if (!canOn) return { state, temp, actions, reason: active ? `방 온도 ${temp}° — 프로그램 진행 중에는 켜지 않음` : `방 온도 ${temp}° — 켜는 시간(시작 ${cfg.PRE_MIN}분 전)이 아님` };
       for (const d of usable) {
         if (!(d.power === 'ON' && d.mode === 'HEAT')) {
           actions.push({ deviceId: d.id, power: 'ON', mode: 'HEAT', temp: cfg.HEAT_TARGET, why: '난방 켜기' });
@@ -53,7 +54,11 @@ export function decideRoom({ roomItems, allItems, nowMin, devices, cfg }) {
     }
     for (const d of usable) {
       if (d.power === 'ON' && d.mode === 'COOL' && temp <= cfg.COOL_OFF) actions.push({ deviceId: d.id, power: 'OFF', why: '충분히 시원해 끄기' });
-      if (cfg.HEAT_ENABLED && d.power === 'ON' && d.mode === 'HEAT' && temp >= cfg.HEAT_OFF) actions.push({ deviceId: d.id, power: 'OFF', why: '충분히 따뜻해 끄기' });
+      if (cfg.HEAT_ENABLED && d.power === 'ON' && d.mode === 'HEAT' && temp >= cfg.HEAT_OFF) {
+        // HEAT_KEEP_IDS 가 있으면(백운홀) 그 에어컨만 남기고 나머지만 끈다
+        if (!cfg.HEAT_KEEP_IDS) actions.push({ deviceId: d.id, power: 'OFF', why: '충분히 따뜻해 끄기' });
+        else if (!cfg.HEAT_KEEP_IDS.has(d.id)) actions.push({ deviceId: d.id, power: 'OFF', why: `${cfg.HEAT_OFF}° 이상 — 강사측·입구측만 남기고 끄기` });
+      }
     }
     return { state, temp, actions, reason: actions.length ? `방 온도 ${temp}° — 목표 도달, 끄기` : `방 온도 ${temp}° — 적정(제어 없음)` };
   }

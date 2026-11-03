@@ -10,7 +10,9 @@ export const STAGE = Object.freeze({ CHECK_MIN: 30, DROP: 1 });
 // devs: 방의 쓸 수 있는 에어컨 [{id, power, mode}] / isOn(d): «켜져 있음» 판단(비품실은 모드 상관없이 켜짐 기준)
 // firstGroupIds: 처음 켜는 묶음 후보(전부 켜진 상태로 처음 본 경우 남길 묶음)
 // need: 이 온도보다 높으면(=더 식혀야 하면) 전부 켠다
-export function stageStep({ state, date, nowMin, temp, active, devs, isOn, firstGroupIds = [], need, cool = true, coolTarget }) {
+// mode: 'COOL' | 'HEAT' | null(켜기만, 비품실) / target: 설정 온도 / revert: 전부 켠 뒤 «한 묶음으로 되돌리기» 사용 여부(난방은 26° 이상 규칙이 대신함)
+// 난방은 «올라갔는지»를 본다(need 보다 낮으면 더 데워야 함)
+export function stageStep({ state, date, nowMin, temp, active, devs, isOn, firstGroupIds = [], need, mode = 'COOL', target, revert = true }) {
   if (active || temp === null || temp === undefined) return { actions: [], state };
   const all = devs.map((d) => d.id), on = devs.filter(isOn).map((d) => d.id);
   if (!on.length || all.length < 2) return { actions: [], state: null };
@@ -20,19 +22,22 @@ export function stageStep({ state, date, nowMin, temp, active, devs, isOn, first
     return { actions: [], state: { date, stage: on.length < all.length ? 'one' : 'all', t: nowMin, temp, keep } };
   }
   if (nowMin - state.t < STAGE.CHECK_MIN - 5) return { actions: [], state };
-  const drop = state.temp - temp;
+  const heat = mode === 'HEAT';
+  const drop = heat ? temp - state.temp : state.temp - temp;   // «좋은 쪽으로 변한 양»(냉방=내려감, 난방=올라감)
+  const more = heat ? temp < need : temp > need;
   const next = { ...state };
   const actions = [];
   if (on.length < all.length) {
-    if (temp > need && drop < STAGE.DROP) {
-      for (const d of devs) if (!isOn(d)) actions.push(cool
-        ? { deviceId: d.id, power: 'ON', mode: 'COOL', temp: coolTarget, wind: 'AUTO', why: `냉방 켜기 — ${STAGE.CHECK_MIN}분 동안 ${Math.round(drop * 10) / 10}° 내려가 나머지도 켬` }
-        : { deviceId: d.id, power: 'ON', why: `켜기 — ${STAGE.CHECK_MIN}분 동안 ${Math.round(drop * 10) / 10}° 내려가 나머지도 켬` });
+    if (more && drop < STAGE.DROP) {
+      const word = heat ? '올라' : '내려', reason = `${STAGE.CHECK_MIN}분 동안 ${Math.round(Math.abs(drop) * 10) / 10}°만 ${drop >= 0 ? word : (heat ? '내려' : '올라')}가 나머지도 켬`;
+      for (const d of devs) if (!isOn(d)) actions.push(mode
+        ? { deviceId: d.id, power: 'ON', mode, temp: target, ...(heat ? {} : { wind: 'AUTO' }), why: `${heat ? '난방' : '냉방'} 켜기 — ${reason}` }
+        : { deviceId: d.id, power: 'ON', why: `켜기 — ${reason}` });
       next.stage = 'all';
     }
     next.t = nowMin; next.temp = temp;
   } else {
-    if (drop >= STAGE.DROP && state.stage === 'all') {
+    if (revert && drop >= STAGE.DROP && state.stage === 'all') {
       for (const d of devs) if (isOn(d) && !(state.keep || []).includes(d.id)) actions.push({ deviceId: d.id, power: 'OFF', stageRevert: true, why: `끄기 — 온도가 ${Math.round(drop * 10) / 10}° 내려가 한 묶음만 남김` });
       next.stage = 'one';
     }

@@ -74,7 +74,7 @@ await t('시작 70분 전은 아직 안 함', () => {
   assert.equal(r.actions.length, 0); assert.equal(r.state, 'gap');
 });
 await t('추워도 난방은 하지 않는다(중앙제어) — 켜 두면(HEAT_ENABLED) 그때만 난방', () => {
-  const base = { roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin: 610, devices: [dev('OFF', 'COOL', 17)] };
+  const base = { roomItems: [item('2F 203호', '10:00', '11:00')], allItems: [], nowMin: 545, devices: [dev('OFF', 'COOL', 17)] };
   assert.equal(decideRoom({ ...base, cfg: CONFIG }).actions.length, 0);
   const r = decideRoom({ ...base, cfg: { ...CONFIG, HEAT_ENABLED: true } });
   assert.equal(r.actions[0].mode, 'HEAT'); assert.equal(r.actions[0].temp, CONFIG.HEAT_TARGET);
@@ -617,6 +617,37 @@ await t('비품실은 한 개만 켠다(하나도 안 켜져 있을 때만), 이
   const w = makeWorld({ nowMin: k.nowMin, items: [], power: { '산림치유센터 비품실': 'POWER_OFF' } });
   await withWorld(w, () => runAuto(env, w.fetchFn, k.now, null, { supplyOnly: true }));
   assert.equal(w.calls.filter((c) => /control$/.test(c.url) && c.body.operation && c.body.operation.airConOperationMode === 'POWER_ON').length, 1);
+});
+
+
+await t('백운홀 자동 난방: 일정이 있으면 60분 전 22° 이하에서 한 열만 난방 26°, 30분 뒤 안 오르면 전부, 26° 이상이면 강사측·입구측만 남김', async () => {
+  const kv = mkKV(); const env = { ...ENV, STATE: kv };
+  const its = [item('백운홀', '10:00', '11:00')];
+  const heatOn = (w) => w.calls.filter((c) => /control$/.test(c.url) && c.body.airConJobMode && c.body.airConJobMode.currentJobMode === 'HEAT');
+  const k0 = at('09:00');
+  const w0 = makeWorld({ nowMin: k0.nowMin, items: its, temps: { baekun: 20 } });
+  await withWorld(w0, () => runAuto(env, w0.fetchFn, k0.now));
+  const c0 = w0.calls.filter((c) => /control$/.test(c.url));
+  assert.equal(heatOn(w0).length, 1, '처음엔 한 대(한 열)만');
+  assert.equal(c0.find((c) => c.body.temperature).body.temperature.targetTemperature, 26);
+  // 30분 뒤 0.2°만 올랐으면 나머지 4대도 난방
+  const esc0 = JSON.parse(kv.m.esc).baekun; assert.equal(esc0.stage, 'one');
+  const first = w0.devices.find((d) => heatOn(w0)[0].url.includes('/' + d.deviceId + '/')).alias.replace(/^에어컨\(|\)$/g, '');
+  const k1 = at('09:30');
+  const w1 = makeWorld({ nowMin: k1.nowMin, items: its, temps: { baekun: 20.2 }, power: { [first]: 'POWER_ON' }, mode: { [first]: 'HEAT' } });
+  await withWorld(w1, () => runAuto(env, w1.fetchFn, k1.now));
+  assert.equal(heatOn(w1).length, 4, '나머지 4대 난방');
+  // 26° 이상이면 강사측·입구측만 남기고 끔(진행 중에도 끄기는 함)
+  const all = { '입구옆측': 'POWER_ON', '강사측 2열': 'POWER_ON', '강사측': 'POWER_ON', '입구측': 'POWER_ON', '강사옆측 2열': 'POWER_ON' };
+  const k2 = at('10:30');
+  const w2 = makeWorld({ nowMin: k2.nowMin, items: its, temps: { baekun: 26.5 }, power: all, mode: Object.fromEntries(Object.keys(all).map((a) => [a, 'HEAT'])) });
+  await withWorld(w2, () => runAuto(env, w2.fetchFn, k2.now));
+  const offs = w2.calls.filter((c) => /control$/.test(c.url) && c.body.operation && c.body.operation.airConOperationMode === 'POWER_OFF').map((c) => w2.devices.find((d) => c.url.includes('/' + d.deviceId + '/')).alias);
+  assert.equal(offs.length, 3); assert.ok(offs.every((a) => /입구옆측|2열/.test(a)), '끈 것: ' + offs);
+  // 프로그램 진행 중(10:30)에 추워도 새로 켜지 않음
+  const w3 = makeWorld({ nowMin: k2.nowMin, items: its, temps: { baekun: 19 } });
+  await withWorld(w3, () => runAuto(env, w3.fetchFn, k2.now));
+  assert.equal(w3.calls.filter((c) => /control$/.test(c.url)).length, 0);
 });
 
 await t('방 온도는 센서(양끝) 에어컨 값으로 잰다', () => {

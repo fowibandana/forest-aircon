@@ -347,7 +347,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.12.0';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.13.0';   // 화면(이 파일)의 버전
 const WIND_KO = { SLOW: '미약', LOW: '약', MID: '중', HIGH: '강', POWER: '파워', AUTO: '자동' };
 const windKo = (w) => w ? (WIND_KO[w] || w) : '';
 const WIND_BARS = { SLOW: 1, LOW: 2, MID: 3, HIGH: 4, POWER: 5, AUTO: 5 };
@@ -877,7 +877,10 @@ function openInfo(room) {
     rows.push(['보는 시간', `프로그램 시작 <b>${st.pre}분 전</b>부터 끝날 때까지, 끝나고 10분 뒤 켜진 에어컨을 끔`]);
     if (room.customSettings) rows.push(['', '<span class="note">이 방만 따로 바꾼 기준입니다.</span>']);
   }
-  if (!heatOn()) rows.push(['난방', '현재 중앙제어로 막혀 있어 사용하지 않습니다(자동·수동 모두 없음).']);
+  if (room.key === 'baekun') {
+    rows.push(['난방 켜기', '방 온도(강사측·입구측 평균) <b>22° 이하</b> → <b>26°</b> 난방, 한 열씩 켜고 30분 뒤 1° 도 안 오르면 전부 켬']);
+    rows.push(['난방 줄이기', '방 온도 <b>26° 이상</b> → 강사측·입구측만 남기고 나머지(가운데 열 등) 끔']);
+  } else if (!heatOn()) rows.push(['난방', '현재 중앙제어로 막혀 있어 사용하지 않습니다(자동·수동 모두 없음).']);
   rows.push(['상태 확인', room.devices.some((d) => !d.unsupported) ? roomAge(room.key) : '–']);
   $('infoT').textContent = `${room.short} 정보`;
   $('infoB').innerHTML = rows.map(([k, v]) => `<div>${k ? `<span class="k">${k}</span>` : ''}${v}</div>`).join('');

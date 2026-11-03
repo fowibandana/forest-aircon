@@ -1,4 +1,4 @@
-import { spanOf } from './rooms.js';
+import { spanOf, PLACES } from './rooms.js';
 import { TICK_MIN } from './auto.js';
 
 // 시간으로 정해진 규칙(순수 함수) — 일정과 상관없이 정해진 시각에 하는 일
@@ -72,7 +72,7 @@ export function coldAlerts({ nowMin, decisions, by, allItems, enabledOf, date })
   const out = [];
   for (const [key, d] of Object.entries(decisions)) {
     const items = by[key] || [];
-    if (!items.length || !enabledOf(key) || typeof d.temp !== 'number' || d.temp > RULES.COLD_ALERT) continue;
+    if (!items.length || (PLACES[key] || {}).heatCfg || !enabledOf(key) || typeof d.temp !== 'number' || d.temp > RULES.COLD_ALERT) continue;
     const spans = items.map((it) => spanOf(it, allItems)).filter((s) => s.e > nowMin).sort((a, b) => a.s - b.s);
     if (!spans.length) continue;
     out.push({ id: date + ':' + key, date, room: key, temp: d.temp, start: spans[0].s, at: hhmm(nowMin) });

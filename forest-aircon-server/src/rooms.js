@@ -22,7 +22,8 @@ export const PLACES = {
   haearim: { name: '해아림홀',                short: '해아림홀',     floor: '1F', sched: true, noapi: true, dummies: ['해아림홀 앞'] },
   // 백운홀: 한 개의 넓은 방. 난방도 되지만 모두 묶여 있어 가끔 냉방이 난방으로 바뀜 → 바뀌면 오류·알림. 일정 연동 없음(수동).
   // dummies: ThinQ 에 없는 자리(도면에 «없음»으로만 표시)
-  baekun:  { name: '백운홀',                  short: '백운홀',       floor: '백운홀', sched: false, heat: true, dummies: ['강사옆측'],
+  baekun:  { name: '백운홀',                  short: '백운홀',       floor: '백운홀', sched: true, heat: true, dummies: ['강사옆측'],
+             heatCfg: { COLD_ON: 22, HEAT_TARGET: 26, HEAT_OFF: 26, keep: ['강사측', '입구측'] },   // 22° 이하면 난방 26°, 26° 이상이면 이 두 대만 남기고(가운데 열 등) 끔
              sensors: ['강사측', '입구측'],   // 방 온도: 강사측 쪽 + 입구 쪽 두 곳
              groups: [{ label: '강사측 열', names: ['강사측', '강사옆측'] }, { label: '2열', names: ['강사측2열', '강사옆측2열'] }, { label: '입구측 열', names: ['입구옆측', '입구측'] }] },
   // 2층
@@ -88,6 +89,7 @@ export function roomOf(loc) {
   if (!s) return null;
   let m = /건강증진실([12])/.exec(s);
   if (m) return 'hp' + m[1];
+  if (/백운홀/.test(s)) return 'baekun';
   if (/해아림/.test(s)) return 'haearim';
   if (/실감/.test(s)) return 'media';
   m = /(?:^|[^\d])B?(10[12])(?:호|[^\d]|$)/i.exec(s);
