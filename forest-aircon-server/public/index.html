@@ -347,7 +347,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.13.0';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.13.1';   // 화면(이 파일)의 버전
 const WIND_KO = { SLOW: '미약', LOW: '약', MID: '중', HIGH: '강', POWER: '파워', AUTO: '자동' };
 const windKo = (w) => w ? (WIND_KO[w] || w) : '';
 const WIND_BARS = { SLOW: 1, LOW: 2, MID: 3, HIGH: 4, POWER: 5, AUTO: 5 };
@@ -831,7 +831,7 @@ async function onAct(room, a) {
   const st = room.settings || {};
   if (a === 'cool' || a === 'heat') {
     const t = a === 'cool' ? (st.cool_target ?? 24) : (st.heat_target ?? 22), name = a === 'cool' ? '냉방' : '난방';
-    const gl = (room.groups || []).length > 1 ? ` — ${room.groups.join(' / ')} 중 한 묶음씩 번갈아 켭니다` : '';
+    const gl = room.eachPick ? ' — 1·2번 중 한 대, 3·4번 중 한 대만 켭니다(다음엔 반대쪽으로 번갈아)' : (room.groups || []).length > 1 ? ` — ${room.groups.join(' / ')} 중 한 묶음씩 번갈아 켭니다` : '';
     return confirmAct(`${room.short} 전체 ${name} 켜기`, `${ids.length}대를 ${name}(${t}°)으로 켭니다.${gl}`, ids, a, t);
   }
   return confirmAct(`${room.short} 전체 끄기`, `${ids.length}대를 끕니다.`, ids, 'off');

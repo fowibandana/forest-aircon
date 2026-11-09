@@ -658,7 +658,7 @@ await t('방 온도는 센서(양끝) 에어컨 값으로 잰다', () => {
   assert.equal(r2.temp, 28, '센서 지정이 없으면 전체 평균');
 });
 
-await t('자동으로 켤 때 4대 방은 1·2번 / 3·4번 한 묶음씩 번갈아 켠다', async () => {
+await t('자동으로 켤 때 4대 방은 1·2번 중 한 대 + 3·4번 중 한 대를 번갈아 켠다(1·3 → 2·4)', async () => {
   const kv = mkKV(); const env = { ...ENV, STATE: kv };
   const offs = (w, from) => w.calls.slice(from).filter((c) => /control$/.test(c.url) && c.body.operation && c.body.operation.airConOperationMode === 'POWER_ON').map((c) => w.devices.find((d) => c.url.includes('/' + d.deviceId + '/')).alias);
   const w = makeWorld({ nowMin: 9 * 60, items: [item('치유장비실', '10:00', '11:00')], temps: { hp1: 31 } });
@@ -666,14 +666,14 @@ await t('자동으로 켤 때 4대 방은 1·2번 / 3·4번 한 묶음씩 번갈
   w.setNow(9 * 60);
   const w1 = makeWorld({ nowMin: 9 * 60, items: [item('건강증진실 1', '10:00', '11:00')], temps: { hp1: 31 } });
   const r1 = await withWorld(w1, () => runAuto(env, w1.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 0))));
-  const on1 = offs(w1, 0); assert.equal(on1.length, 2); assert.ok(on1.every((a) => /치유장비실 [12]\)/.test(a)), '처음엔 1·2번: ' + on1);
+  const on1 = offs(w1, 0); assert.equal(on1.length, 2); assert.ok(on1.some((a) => /치유장비실 1\)/.test(a)) && on1.some((a) => /치유장비실 3\)/.test(a)), '처음엔 1·3번: ' + on1);
   assert.match(r1.log[0].reason, /냉방/);
   const w2 = makeWorld({ nowMin: 9 * 60, items: [item('건강증진실 1', '10:00', '11:00')], temps: { hp1: 31 } });
   await withWorld(w2, () => runAuto(env, w2.fetchFn, new Date(Date.UTC(2026, 9, 27, 0, 0))));
-  const on2 = offs(w2, 0); assert.equal(on2.length, 2); assert.ok(on2.every((a) => /치유장비실 [34]\)/.test(a)), '다음엔 3·4번: ' + on2);
+  const on2 = offs(w2, 0); assert.equal(on2.length, 2); assert.ok(on2.some((a) => /치유장비실 2\)/.test(a)) && on2.some((a) => /치유장비실 4\)/.test(a)), '다음엔 2·4번: ' + on2);
 });
 
-await t('수동 «방 전체 냉방»도 한 묶음씩 번갈아(4대 방은 2대, 백운홀은 3열을 돌아가며 한 열씩)', async () => {
+await t('수동 «방 전체 냉방»도 번갈아(4대 방은 1·2번 중 한 대 + 3·4번 중 한 대, 백운홀은 3열을 돌아가며 한 열씩)', async () => {
   const kv = mkKV(); const env = { ...ENV, STATE: kv };
   const w = makeWorld({ nowMin: 9 * 60 });
   const call = async (path, body) => (await worker.fetch(new Request('https://x' + path, { method: 'POST', headers: { 'x-app-password': 'pw' }, body: JSON.stringify(body) }), env)).json();
@@ -682,8 +682,8 @@ await t('수동 «방 전체 냉방»도 한 묶음씩 번갈아(4대 방은 2�
   const bh = ['강사측', '강사측 2열', '강사옆측 2열', '입구측', '입구옆측'].map((n) => idOf(new RegExp('\\(' + n + '\\)')));
   globalThis.fetch = w.fetchFn;
   try {
-    const a = await call('/api/control', { deviceIds: hp, action: 'cool' }); assert.equal(a.results.length, 2); assert.deepEqual(a.results.map((r) => r.id).sort(), [hp[0], hp[1]].sort()); assert.match(a.picked[0], /1·2번/);
-    const b = await call('/api/control', { deviceIds: hp, action: 'cool' }); assert.deepEqual(b.results.map((r) => r.id).sort(), [hp[2], hp[3]].sort());
+    const a = await call('/api/control', { deviceIds: hp, action: 'cool' }); assert.equal(a.results.length, 2); assert.deepEqual(a.results.map((r) => r.id).sort(), [hp[0], hp[2]].sort()); assert.match(a.picked[0], /1·3번/);
+    const b = await call('/api/control', { deviceIds: hp, action: 'cool' }); assert.deepEqual(b.results.map((r) => r.id).sort(), [hp[1], hp[3]].sort());
     const c1 = await call('/api/control', { deviceIds: bh, action: 'cool' }); const c2 = await call('/api/control', { deviceIds: bh, action: 'cool' }); const c3 = await call('/api/control', { deviceIds: bh, action: 'cool' });
     assert.deepEqual([c1, c2, c3].map((x) => x.results.length), [1, 2, 2], '강사측 열(실제 1대) → 2열 → 입구측 열');
     const one = await call('/api/control', { deviceIds: [hp[0]], action: 'cool' }); assert.equal(one.results.length, 1, '한 대만 누르면 그대로');

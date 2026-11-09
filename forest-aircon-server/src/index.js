@@ -102,6 +102,17 @@ function groupsFor(key, roomDevs, auto) {
 function pickGroup(key, cands, rot, roomDevs = null, auto = false) {
   const gs = groupsFor(key, roomDevs, auto); if (!gs || gs.length < 2) return null;
   const idx = (d) => gs.findIndex((g) => g.has(d));
+  if ((PLACES[key] || {}).eachPick) {   // 4대 방: 묶음(1·2번 / 3·4번)마다 한 대씩 — 어느 쪽을 켤지 번갈아
+    const n = rot[key] || 0, keep = new Set(), names = [];
+    gs.forEach((g, gi) => {
+      const inG = cands.filter((d) => idx(d) === gi).sort((a, b) => String(a.alias).localeCompare(String(b.alias), 'ko'));
+      if (inG.length) { const d = inG[n % inG.length]; keep.add(d.id); names.push(aliasCore(d.alias).replace(/\D*$/, '').slice(-1) || '?'); }
+    });
+    for (const d of cands) if (idx(d) < 0) keep.add(d.id);
+    if (!keep.size) return null;
+    rot[key] = n + 1;
+    return { keep, label: names.join('·') + '번' };
+  }
   const have = new Set(cands.map(idx).filter((i) => i >= 0));
   const pickOf = (g, extra = {}) => ({ keep: new Set(cands.filter((d) => idx(d) === g || idx(d) < 0).map((d) => d.id)), label: gs[g].label, ...extra });
   if (have.size < 2) { if (!have.size) return null; const g = [...have][0]; rot[key] = (g + 1) % gs.length; return pickOf(g, { single: true }); }
@@ -176,7 +187,7 @@ async function statusResponse(env, fresh = false) {
   const floors = FLOOR_ORDER.map((f) => ({
     floor: f,
     rooms: Object.entries(PLACES).filter(([, r]) => r.floor === f).map(([key, r]) => ({
-      key, name: r.name, short: r.short, scheduled: r.sched, noapi: !!r.noapi, heat: !!r.heat, groups: (r.groups || []).map((g) => g.label), tempIds: [...(sensorIdsOf(key, snap.devices.filter((d) => d.room === key)) || [])], settings: cfgs[key].settings, customSettings: cfgs[key].custom,
+      key, name: r.name, short: r.short, scheduled: r.sched, noapi: !!r.noapi, heat: !!r.heat, groups: (r.groups || []).map((g) => g.label), eachPick: !!r.eachPick, tempIds: [...(sensorIdsOf(key, snap.devices.filter((d) => d.room === key)) || [])], settings: cfgs[key].settings, customSettings: cfgs[key].custom,
       schedule: summarizeRoom(by[key] || [], snap.sched.items, snap.sched.nowMin),
       devices: [...snap.devices.filter((d) => d.room === key).map(pub), ...(r.dummies || []).map((n) => ({ id: '', alias: '에어컨(' + n + ')', unsupported: true, dummy: true, ok: false, error: null, power: null, mode: null, cur: null, target: null }))],
       temp: decisions[key].temp,
@@ -399,7 +410,7 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
     const hc = (PLACES[key] || {}).heatCfg, heating = !!hc && devs.some(isOnFor(key, 'HEAT'));   // 백운홀: 난방 중이면 «올랐는지»를 본다
     const mode = key === 'supply' ? null : heating ? 'HEAT' : 'COOL';
     const r = stageStep({ state: esc[key], date: sched.date, nowMin: sched.nowMin, temp: key === 'supply' ? tempAvg(devs) : dec.temp, active: dec.state === 'active', devs, isOn: isOnFor(key, mode || 'COOL'),
-      firstGroupIds: gs ? devs.filter((d) => gs[0].has(d)).map((d) => d.id) : [], need: key === 'supply' ? st.hot_on - 0.01 : heating ? hc.HEAT_TARGET : st.cool_target, mode, target: heating ? hc.HEAT_TARGET : st.cool_target, revert: !heating });
+      firstGroupIds: gs ? ((PLACES[key] || {}).eachPick ? gs.map((g) => (devs.find((d) => g.has(d)) || {}).id).filter(Boolean) : devs.filter((d) => gs[0].has(d)).map((d) => d.id)) : [], need: key === 'supply' ? st.hot_on - 0.01 : heating ? hc.HEAT_TARGET : st.cool_target, mode, target: heating ? hc.HEAT_TARGET : st.cool_target, revert: !heating });
     if (JSON.stringify(r.state) !== JSON.stringify(esc[key])) { if (r.state) esc[key] = r.state; else delete esc[key]; escChanged = true; }
     for (const a of r.actions) todo.set(a.deviceId, { ...a, room: key, stage: true, reason: a.why });
   }
@@ -413,8 +424,16 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
     const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON' && !a.stage);
     if (!ons.length) continue;
     const roomDevs = snap.devices.filter((d) => d.room === key && d.ok && d.power);
-    if (roomDevs.length >= 2 && (roomDevs.some(isOnFor(key)) || roomDevs.some(isOnFor(key, 'HEAT')))) { for (const a of ons) todo.delete(a.deviceId); continue; }
-    const pg = pickGroup(key, ons.map((a) => devById.get(a.deviceId)).filter(Boolean), rot, roomDevs, true);
+    const isOnAny = (d) => isOnFor(key)(d) || isOnFor(key, 'HEAT')(d);
+    let cand = ons.map((a) => devById.get(a.deviceId)).filter(Boolean);
+    if ((PLACES[key] || {}).eachPick) {   // 이미 한 대가 켜진 묶음에는 더 켜지 않는다
+      const gs = groupsFor(key, roomDevs, true), gi = (d) => gs.findIndex((g) => g.has(d));
+      const busy = new Set(roomDevs.filter(isOnAny).map(gi));
+      for (const d of cand) if (busy.has(gi(d))) todo.delete(d.id);
+      cand = cand.filter((d) => !busy.has(gi(d)));
+      if (!cand.length) continue;
+    } else if (roomDevs.length >= 2 && roomDevs.some(isOnAny)) { for (const a of ons) todo.delete(a.deviceId); continue; }
+    const pg = pickGroup(key, cand, rot, roomDevs, true);
     if (!pg) continue;
     for (const a of ons) { if (pg.keep.has(a.deviceId)) a.note = '번갈아 켜기: ' + pg.label; else todo.delete(a.deviceId); }
     rotUsed = true;

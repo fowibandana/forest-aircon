@@ -14,9 +14,11 @@ export const PLACES = {
   lobby1:  { name: '1F 로비',                 short: '1F 로비',     floor: '1F', sched: false },
   hp1:     { name: '건강증진실 1 (치유장비실)', short: '건강증진실 1', floor: '1F', sched: true,
              sensors: ['치유장비실1', '치유장비실4'],   // 방 온도는 양끝(1번·4번) 에어컨의 값으로
+             eachPick: true,   // 켤 때 1·2번 중 한 대 + 3·4번 중 한 대(번갈아)
              groups: [{ label: '1·2번', names: ['치유장비실1', '치유장비실2'] }, { label: '3·4번', names: ['치유장비실3', '치유장비실4'] }] },   // 켤 때는 한 묶음씩 번갈아   // ThinQ 앱에서는 «치유장비실»로 등록된 에어컨 4대
   hp2:     { name: '건강증진실 2',             short: '건강증진실 2', floor: '1F', sched: true,
              sensors: ['건강증진실21', '건강증진실24'],
+             eachPick: true,
              groups: [{ label: '1·2번', names: ['건강증진실21', '건강증진실22'] }, { label: '3·4번', names: ['건강증진실23', '건강증진실24'] }] },
   // noapi: LG 서버가 이 에어컨의 상태 읽기·제어를 지원하지 않는다(ThinQ 앱에서만 조작). 일정은 보여주되 제어하지 않는다.
   haearim: { name: '해아림홀',                short: '해아림홀',     floor: '1F', sched: true, noapi: true, dummies: ['해아림홀 앞'] },
