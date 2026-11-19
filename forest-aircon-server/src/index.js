@@ -157,12 +157,12 @@ async function writeCache(env, devices) {
   try { await env.STATE.put(CACHE_KEY, JSON.stringify({ t: Date.now(), devices })); } catch {}
 }
 
-async function statusResponse(env, fresh = false) {
+async function statusResponse(env, fresh = false, cachedOnly = false) {
   const smap = await loadSettings(env);
   const cache = await readCache(env);
   const age = cache ? Date.now() - cache.t : Infinity;
   let snap, stale = null;
-  if (cache && (age < FORCE_MIN_MS || (!fresh && age < CACHE_TTL_MS))) {
+  if (cache && (age < FORCE_MIN_MS || cachedOnly || (!fresh && age < CACHE_TTL_MS))) {
     snap = await snapshot(env, fetch, () => true, null, cache.devices);
   } else {
     try {
@@ -502,7 +502,7 @@ export default {
     }
     if (url.pathname === '/api/ping') return json({ ok: true, version: VERSION });   // 비밀번호 확인만(LG 호출 없음)
     try {
-      if (url.pathname === '/api/status' && request.method === 'GET') return json({ ok: true, ...(await statusResponse(env, url.searchParams.get('fresh') === '1')) });
+      if (url.pathname === '/api/status' && request.method === 'GET') return json({ ok: true, ...(await statusResponse(env, url.searchParams.get('fresh') === '1', url.searchParams.get('cached') === '1')) });
       if (url.pathname === '/api/devices' && request.method === 'GET') {
         const list = await new Thinq(env.THINQ_PAT).listDevices();
         return json({ ok: true, devices: list.map((d) => ({ ...d, room: deviceRoom(d) || null })) });

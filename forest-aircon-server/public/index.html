@@ -30,6 +30,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 
 /* 로그인 */
 #login{padding-top:18vh}
+#boot{padding-top:22vh;text-align:center}
+#boot h1{font-size:22px;font-weight:700;margin-bottom:18px}
+#boot .sp{width:34px;height:34px;margin:0 auto 16px;border:3px solid var(--line);border-top-color:var(--ink);border-radius:50%;animation:bs 0.9s linear infinite}
+@keyframes bs{to{transform:rotate(360deg)}}
+#boot .st{font-size:15px;color:var(--ink)}
+#boot .sm{font-size:13px;color:var(--mute);margin-top:8px;line-height:1.5}
 #login h1{font-size:22px;font-weight:700;margin-bottom:6px}
 #login p{color:var(--mute);font-size:14px;margin-bottom:18px}
 #login input{width:100%;font:inherit;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);margin-bottom:10px}
@@ -270,6 +276,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 </head>
 <body>
 
+<section id="boot"><h1>산림치유센터 냉난방관리</h1><div class="sp"></div><div class="st" id="bootSt">서버에 연결하는 중…</div><div class="sm" id="bootSm"></div></section>
 <section id="login" class="hide">
   <h1>산림치유센터 냉난방관리</h1>
   <p>관리자 비밀번호를 입력하세요.</p>
@@ -347,7 +354,7 @@ dialog p{font-size:14px;color:var(--mute);margin-bottom:14px;line-height:1.5}
 <script>
 'use strict';
 const $ = (id) => document.getElementById(id);
-const APP_VERSION = '1.13.3';   // 화면(이 파일)의 버전
+const APP_VERSION = '1.14.0';   // 화면(이 파일)의 버전
 const WIND_KO = { SLOW: '미약', LOW: '약', MID: '중', HIGH: '강', POWER: '파워', AUTO: '자동' };
 const windKo = (w) => w ? (WIND_KO[w] || w) : '';
 const WIND_BARS = { SLOW: 1, LOW: 2, MID: 3, HIGH: 4, POWER: 5, AUTO: 5 };
@@ -384,6 +391,7 @@ async function api(path, opt = {}) {
 
 /* ── 로그인 ── */
 function showLogin(msg) {
+  bootDone();
   $('app').classList.add('hide'); $('login').classList.remove('hide');
   $('loginErr').textContent = msg || ''; clearInterval(timer);
 }
@@ -395,21 +403,33 @@ $('loginBtn').onclick = async () => {
 };
 $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('loginBtn').click(); });
 
+/* ── 처음 화면: 지금 무엇을 기다리는지 보여 준다 ── */
+const bootT0 = Date.now();
+const bootTimer = setInterval(() => {
+  const sec = Math.floor((Date.now() - bootT0) / 1000), st = $('bootSt'), sm = $('bootSm'); if (!st) return;
+  st.textContent = sec < 2 ? '서버에 연결하는 중…' : bootStage;
+  sm.textContent = sec < 2 ? '' : sec < 8 ? `${sec}초 경과` : `${sec}초 경과 — LG 서버가 에어컨을 하나씩 읽느라 오래 걸리고 있습니다. 조금만 기다려 주세요.`;
+}, 500);
+let bootStage = '일정과 에어컨 상태를 불러오는 중…';
+const bootDone = () => { clearInterval(bootTimer); const b = $('boot'); if (b) b.classList.add('hide'); };
+
 /* ── 불러오기 ── */
 async function load(first, fresh) {
   if (busy) return; busy = true; $('refresh').classList.add('spin');
+  let again = false;
   try {
-    DATA = await api('/api/status' + (fresh ? '?fresh=1' : '')); loadedAt = Date.now(); Object.keys(rTs).forEach((k) => delete rTs[k]);
+    // 처음 열 때는 서버에 저장된 값을 먼저 받아 바로 보여 주고(빠름), 오래된 값이면 곧이어 새로 읽는다
+    DATA = await api('/api/status' + (fresh ? '?fresh=1' : first ? '?cached=1' : '')); if (first && DATA.cachedSec > 300) again = true; loadedAt = Date.now(); Object.keys(rTs).forEach((k) => delete rTs[k]);
     $('login').classList.add('hide'); $('app').classList.remove('hide');
     $('err').innerHTML = DATA.stale ? `<div class="err">${DATA.stale.ageSec == null ? 'LG 서버에서 에어컨 상태를 읽지 못했습니다(방 구성만 보여줍니다).' : 'LG 서버에서 새로 읽지 못해 ' + DATA.stale.ageSec + '초 전 값을 보여줍니다.'} ${esc(DATA.stale.reason)}</div>` : '';
     render();
-    if (first) loadErrBadge();
+    if (first) { loadErrBadge(); bootDone(); }
   } catch (e) {
     if (e.auth) throw e;
     if (!DATA) { if (first) throw e; }
     $('err').innerHTML = `<div class="err">불러오지 못했습니다: ${esc(e.message)}</div>`;
-    if (first) { $('login').classList.add('hide'); $('app').classList.remove('hide'); }
-  } finally { busy = false; $('refresh').classList.remove('spin'); }
+    if (first) { $('login').classList.add('hide'); $('app').classList.remove('hide'); bootDone(); }
+  } finally { busy = false; $('refresh').classList.remove('spin'); if (again) { const sub = $('sub'); if (sub) sub.textContent += ' · 에어컨 상태를 새로 읽는 중…'; load(false); } }
 }
 let curIds = [];   // 지금 보는 층의 에어컨 — 맨 위 새로고침은 이 층만 읽는다(LG 호출 절약)
 $('refresh').onclick = async () => { const b = $('refresh'); b.classList.add('spin'); try { await refreshIds(curIds, b); } finally { b.classList.remove('spin'); } };
