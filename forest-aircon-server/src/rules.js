@@ -46,7 +46,7 @@ export function timedActions({ nowMin, devices, by, allItems, enabledOf }) {
   if (sup.length && !sup.some((d) => d.power === 'ON')) for (const d of sup) actions.push({ room: d.room, deviceId: d.id, power: 'ON', why: '비품실은 항상 켜 둠 — 켜기' });
   // 체험실·실감실
   if (inTick(nowMin, RULES.MEDIA_ON) && enabledOf(RULES.MEDIA)) {
-    for (const d of live) if (d.room === RULES.MEDIA && !(d.power === 'ON')) actions.push({ room: d.room, deviceId: d.id, power: 'ON', mode: 'COOL', temp: null, why: '10:00 체험·실감실 켜기' });
+    for (const d of live) if (d.room === RULES.MEDIA && !(d.power === 'ON')) actions.push({ room: d.room, deviceId: d.id, power: 'ON', mode: 'COOL', temp: null, fixed: true, why: '10:00 체험·실감실 켜기' });
   }
   if (inTick(nowMin, RULES.MEDIA_OFF) && enabledOf(RULES.MEDIA)) {
     for (const d of live) if (d.room === RULES.MEDIA && d.power === 'ON') actions.push({ room: d.room, deviceId: d.id, power: 'OFF', why: '20:00 체험·실감실 끄기' });

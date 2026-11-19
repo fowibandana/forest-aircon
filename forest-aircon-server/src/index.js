@@ -421,7 +421,7 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
   const rot = await loadRot(env); let rotUsed = false;
   const devById = new Map(snap.devices.map((d) => [d.id, d]));
   for (const key of Object.keys(PLACES)) {
-    const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON' && !a.stage);
+    const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON' && !a.stage && !a.fixed);   // fixed: 시각 규칙(체험·실감실 10시)은 전부 켠다
     if (!ons.length) continue;
     const roomDevs = snap.devices.filter((d) => d.room === key && d.ok && d.power);
     const isOnAny = (d) => isOnFor(key)(d) || isOnFor(key, 'HEAT')(d);

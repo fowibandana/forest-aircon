@@ -15,7 +15,7 @@ const ALIASES = {
   '좌식다도실 탕비실측': 'r205', '좌식다도실 강사측': 'r205',
   // 1F / B1
   '치유장비실 1': 'hp1', '치유장비실 2': 'hp1', '치유장비실 3': 'hp1', '치유장비실 4': 'hp1', '산림치유센터 탈의실 여': 'dressF', '산림치유센터 탈의실 남': 'dressM', '산림치유센터 비품실': 'supply', '건강증진실2 1': 'hp2', '건강증진실2 2': 'hp2', '건강증진실2 3': 'hp2', '건강증진실2 4': 'hp2', '해아림홀 뒤': 'haearim',
-  'B101호': 'b101', '건강측정실 입구측': 'b102', '실감실': 'media',
+  'B101호': 'b101', '건강측정실 입구측': 'b102', '실감실': 'media', '체험실 내측': 'media', '체험실 입구측': 'media',
   // 후순위
   '데탁': 'later', '엘베쪽': 'later',
   // 백운홀
@@ -383,7 +383,7 @@ await t('10시 체험·실감실 켜기 / 20시 끄기', async () => {
     return { w, r };
   };
   const on = await mk('10:00', { '실감실': 'POWER_OFF', '산림치유센터 비품실': 'POWER_ON' });
-  assert.ok(on.r.log.some((l) => l.room === 'media' && /켜기/.test(l.do)), '10:00 켜짐');
+  assert.equal(on.r.log.filter((l) => l.room === 'media' && /켜기/.test(l.do)).length, 3, '10:00 체험·실감실은 세 대 모두 켜짐(한 대씩 번갈아 켜기 대상 아님)');
   const off = await mk('20:00', { '실감실': 'POWER_ON', '산림치유센터 비품실': 'POWER_ON' });
   assert.ok(off.r.log.some((l) => l.room === 'media' && /끄기/.test(l.do)), '20:00 꺼짐');
   assert.ok(!off.r.log.some((l) => l.room === 'supply'), '비품실은 건드리지 않음');
