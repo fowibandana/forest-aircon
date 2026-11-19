@@ -106,12 +106,12 @@ function pickGroup(key, cands, rot, roomDevs = null, auto = false) {
     const n = rot[key] || 0, keep = new Set(), names = [];
     gs.forEach((g, gi) => {
       const inG = cands.filter((d) => idx(d) === gi).sort((a, b) => String(a.alias).localeCompare(String(b.alias), 'ko'));
-      if (inG.length) { const d = inG[n % inG.length]; keep.add(d.id); names.push(aliasCore(d.alias).replace(/\D*$/, '').slice(-1) || '?'); }
+      if (inG.length) { const d = inG[n % inG.length]; keep.add(d.id); { const core = aliasCore(d.alias), m = /(\d)$/.exec(core); names.push(m ? m[1] : core.replace(/^(실감|체험)(실)?/, '$1$2')); } }
     });
     for (const d of cands) if (idx(d) < 0) keep.add(d.id);
     if (!keep.size) return null;
     rot[key] = n + 1;
-    return { keep, label: names.join('·') + '번' };
+    return { keep, label: names.join('·') + (names.every((x) => /^\d$/.test(x)) ? '번' : '') };
   }
   const have = new Set(cands.map(idx).filter((i) => i >= 0));
   const pickOf = (g, extra = {}) => ({ keep: new Set(cands.filter((d) => idx(d) === g || idx(d) < 0).map((d) => d.id)), label: gs[g].label, ...extra });
@@ -421,7 +421,7 @@ export async function runAuto(env, fetchFn = fetch, now = new Date(), knownSched
   const rot = await loadRot(env); let rotUsed = false;
   const devById = new Map(snap.devices.map((d) => [d.id, d]));
   for (const key of Object.keys(PLACES)) {
-    const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON' && !a.stage && !a.fixed);   // fixed: 시각 규칙(체험·실감실 10시)은 전부 켠다
+    const ons = [...todo.values()].filter((a) => a.room === key && a.power === 'ON' && !a.stage);
     if (!ons.length) continue;
     const roomDevs = snap.devices.filter((d) => d.room === key && d.ok && d.power);
     const isOnAny = (d) => isOnFor(key)(d) || isOnFor(key, 'HEAT')(d);

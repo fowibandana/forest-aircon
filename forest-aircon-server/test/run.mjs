@@ -383,7 +383,10 @@ await t('10시 체험·실감실 켜기 / 20시 끄기', async () => {
     return { w, r };
   };
   const on = await mk('10:00', { '실감실': 'POWER_OFF', '산림치유센터 비품실': 'POWER_ON' });
-  assert.equal(on.r.log.filter((l) => l.room === 'media' && /켜기/.test(l.do)).length, 3, '10:00 체험·실감실은 세 대 모두 켜짐(한 대씩 번갈아 켜기 대상 아님)');
+  const onOf = (r) => r.log.filter((l) => l.room === 'media' && /켜기/.test(l.do));
+  assert.equal(onOf(on.r).length, 2, '10:00: 실감실 + 체험실 두 대 중 한 대');
+  const al = (r) => onOf(r).map((l) => on.w.devices.find((d) => d.deviceId === l.device || d.deviceId.startsWith(l.device)).alias);
+  assert.ok(al(on.r).some((a) => /실감실/.test(a)), '실감실은 항상 켜짐'); assert.equal(al(on.r).filter((a) => /체험실/.test(a)).length, 1);
   const off = await mk('20:00', { '실감실': 'POWER_ON', '산림치유센터 비품실': 'POWER_ON' });
   assert.ok(off.r.log.some((l) => l.room === 'media' && /끄기/.test(l.do)), '20:00 꺼짐');
   assert.ok(!off.r.log.some((l) => l.room === 'supply'), '비품실은 건드리지 않음');
@@ -648,6 +651,20 @@ await t('백운홀 자동 난방: 일정이 있으면 60분 전 22° 이하에�
   const w3 = makeWorld({ nowMin: k2.nowMin, items: its, temps: { baekun: 19 } });
   await withWorld(w3, () => runAuto(env, w3.fetchFn, k2.now));
   assert.equal(w3.calls.filter((c) => /control$/.test(c.url)).length, 0);
+});
+
+
+await t('10:00 체험·실감실: 실감실은 항상, 체험실은 두 대 중 한 대를 날마다 번갈아 켠다', async () => {
+  const kv = mkKV(); const env = { ...ENV, STATE: kv, AUTO_MODE: 'live' };
+  const run = async () => {
+    const w = makeWorld({ nowMin: 10 * 60, items: [] });
+    await withWorld(w, () => tickAuto(env, w.fetchFn, new Date(Date.UTC(2026, 9, 27, 1, 0) - 9 * 3600e3 + 9 * 3600e3)));
+    return w.calls.filter((c) => /control$/.test(c.url) && c.body.operation && c.body.operation.airConOperationMode === 'POWER_ON').map((c) => w.devices.find((d) => c.url.includes('/' + d.deviceId + '/')).alias).filter((a) => /체험실|실감실/.test(a)).sort();
+  };
+  const d1 = await run(), d2 = await run();
+  assert.equal(d1.length, 2); assert.equal(d2.length, 2);
+  assert.ok(d1.some((a) => /실감실\)/.test(a)) && d2.some((a) => /실감실\)/.test(a)));
+  assert.notDeepEqual(d1.filter((a) => /체험실/.test(a)), d2.filter((a) => /체험실/.test(a)), '체험실은 번갈아');
 });
 
 await t('방 온도는 센서(양끝) 에어컨 값으로 잰다', () => {

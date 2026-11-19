@@ -6,7 +6,9 @@ export const PLACES = {
   b1lobby: { name: 'B1 로비',                 short: 'B1 로비',     floor: 'B1', sched: false },
   b101:    { name: 'B101호 (사무실)',          short: 'B101호',      floor: 'B1', sched: true },
   b102:    { name: 'B102호 (건강측정실)',      short: 'B102호',      floor: 'B1', sched: true },
-  media:   { name: '실감미디어실',             short: '실감미디어실', floor: 'B1', sched: true },
+  media:   { name: '실감미디어실',             short: '실감미디어실', floor: 'B1', sched: true,
+             eachPick: true,   // 켤 때 실감실은 항상 + 체험실 두 대 중 한 대(번갈아)
+             groups: [{ label: '실감실', names: ['실감실'] }, { label: '체험실', names: ['체험실입구측', '체험실내측'] }] },
   dressF:  { name: '탈의실 (여)',              short: '탈의 여',     floor: 'B1', sched: false },
   dressM:  { name: '탈의실 (남)',              short: '탈의 남',     floor: 'B1', sched: false },
   supply:  { name: '비품실',                  short: '비품실',      floor: 'B1', sched: false },
